@@ -1,7 +1,7 @@
 ## Android
 - 設定憑證 ( Burp / Fiddler )
   1. [開啟 Nox](https://blog.xuite.net/emuking/DB/590071844)
-  2. 憑證命名為 AABBCCDD.0
+  2. 憑證命名為 AABBCCDD.0 [( 例如 fiddler 產生的憑證 )](https://github.com/raymond-chia/Note/blob/main/Security.md#fiddler)
   3. `adb devices` 應該列出
     ```
     List of devices attached
