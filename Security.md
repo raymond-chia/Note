@@ -1,8 +1,25 @@
-# Note
-
-- 有鑑於總是忘東忘西, 需要有個地方紀錄
-
-
+## Android
+- 設定憑證 ( Burp / Fiddler )
+  1. [開啟 Nox](https://blog.xuite.net/emuking/DB/590071844)
+  2. 憑證命名為 AABBCCDD.0
+  3. `adb devices` 應該列出
+    ```
+    List of devices attached
+    127.0.0.1:{port} device
+    ```
+  4. `adb connect 127.0.0.1:{port}`
+  5. `adb root` ( 取得 root 權限 )
+  6. `adb remount` ( 把 system 目錄權限從唯讀改成讀寫 )
+  7. `adb push AABBCCDD.0 /system/etc/security/cacerts` ( 複製憑證到 Android )
+  8. `adb shell chmod 644 /system/etc/security/cacerts/AABBCCDD.0` ( rwx )
+- Nox
+  - 內建 Android Debug Bridge ( Nox/bin )
+  - 使用 proxy
+    1. 下滑
+    2. 長按 wifi
+    3. 長按目前連上的 wifi
+    4. proxy 設定手動
+    5. 設定 proxy host name & proxy port
 
 ## [Cross-site request forgery](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - 假裝受害者發送 request, 執行危險操作
@@ -17,6 +34,13 @@
     - Set cookie attribute properly: SameSite, HTTPOnly, Secure
 - Remember that any Cross-Site Scripting (XSS) can be used to defeat all CSRF mitigation techniques!
 - 別相信 header 資訊 ( picoctf who are you )
+
+## Fiddler
+- [當作 Proxy](https://docs.telerik.com/fiddler/configure-fiddler/tasks/usefiddlerasreverseproxy)
+- [Capture Android](https://docs.telerik.com/fiddler/configure-fiddler/tasks/configureforandroid)
+- 輸出憑證
+  1. Tools/HTTPS 右上角有 Actions
+  2. 選 export root certificate to desktop
 
 ## OAuth 2.0
 - Proof Key for Code Exchange
