@@ -22,6 +22,7 @@
     5. 設定 proxy host name & proxy port
   - [查看 CPU arch](https://blog.csdn.net/qq_36317441/article/details/89494686)
     - adb shell getprop ro.product.cpu.abi
+- decompile [ref](https://stackoverflow.com/questions/3593420/is-there-a-way-to-get-the-source-code-from-an-apk-file) [ref](https://www.decompiler.com/)
 
 ## [Cross-site request forgery](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - 假裝受害者發送 request, 執行危險操作
@@ -43,6 +44,7 @@
 - 輸出憑證
   1. Tools/HTTPS 右上角有 Actions
   2. 選 export root certificate to desktop
+  3. [憑證輸入 android](https://github.com/raymond-chia/Note/blob/main/Security.md#android)
 
 ## Frida
 - [Frida](https://frida.re/)
