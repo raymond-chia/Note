@@ -71,11 +71,11 @@
       ...
       ```
   6. Add the Internet permission to the manifest if it’s not there already, so that Frida gadget can open a socket.  
-    <uses-permission android:name="android.permission.INTERNET" />
+    `<uses-permission android:name="android.permission.INTERNET" />`  
   7. `apktool b -o repackaged.apk out_dir` ( rebuild )
-    - [locales_config.xml not found](https://github.com/iBotPeaches/Apktool/issues/2756#issuecomment-1059370741)
+      - [locales_config.xml not found](https://github.com/iBotPeaches/Apktool/issues/2756#issuecomment-1059370741)
   8. Use apksigner to sign the app
-    - [keystore](https://keystore-explorer.org/downloads.html)
+      - [keystore](https://keystore-explorer.org/downloads.html)
 
 ## OAuth 2.0
 - Proof Key for Code Exchange
