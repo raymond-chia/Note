@@ -20,6 +20,8 @@
     3. 長按目前連上的 wifi
     4. proxy 設定手動
     5. 設定 proxy host name & proxy port
+  - [查看 CPU arch](https://blog.csdn.net/qq_36317441/article/details/89494686)
+    - adb shell getprop ro.product.cpu.abi
 
 ## [Cross-site request forgery](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - 假裝受害者發送 request, 執行危險操作
@@ -41,6 +43,39 @@
 - 輸出憑證
   1. Tools/HTTPS 右上角有 Actions
   2. 選 export root certificate to desktop
+
+## Frida
+- [Frida](https://frida.re/)
+- [Objection](https://github.com/sensepost/objection)
+- 注入 frida-gadget [ref1](https://koz.io/using-frida-on-android-without-root/) [ref2](https://gist.github.com/elevenchars/380a210bf3c91534e7ef4c346543c743)
+  - [Frida Gadget contains most of the functionality of Frida, but encapsulated in a dynamic library that gets loaded by the target app at runtime, allowing you to instrument and modify the target app’s code.](https://www.netspi.com/blog/technical/mobile-application-penetration-testing/four-ways-bypass-android-ssl-verification-certificate-pinning/)
+  1. `apktool d -o out_dir original.apk` ( decompile )
+  2. download frida gadget
+  3. extract the compressed archive
+  4. copy frida gadget library in {cpu arch} directory under lib  
+    for example: for armeabi (32bit ARM) mobile  
+    `cp frida_libs/armeabi/frida-gadget-9.1.26-android-arm.so out_dir/lib/armeabi/libfrida-gadget.so`
+  5. inject a System.loadLibrary("frida-gadget") call in entry point  
+    find entry point in android:name in AndroidManifest.xml: `<activity android:label="@string/app_name" android:name="com.packagename.path.to.MainActivity">`  
+      ```
+      const-string v0, "frida-gadget"
+      
+      invoke-static {v0}, Ljava/lang/System;->loadLibrary(Ljava/lang/String;)V
+      ```  
+      It's important that this is done early in the app's lifecycle, so we can do it in the MainActivity static constructor.  
+      for example:  
+      ```
+      .method static constructor <clinit>()V
+      .locals 1 # this is the number of non-param registers
+      {insert here after the .locals line}
+      ...
+      ```
+  6. Add the Internet permission to the manifest if it’s not there already, so that Frida gadget can open a socket.  
+    <uses-permission android:name="android.permission.INTERNET" />
+  7. `apktool b -o repackaged.apk out_dir` ( rebuild )
+    - [locales_config.xml not found](https://github.com/iBotPeaches/Apktool/issues/2756#issuecomment-1059370741)
+  8. Use apksigner to sign the app
+    - [keystore](https://keystore-explorer.org/downloads.html)
 
 ## OAuth 2.0
 - Proof Key for Code Exchange
