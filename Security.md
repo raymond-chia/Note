@@ -48,23 +48,27 @@
     - HMAC
     - Encrypt
     - Rotation (how ?)
-  - As a general rule, calculating a hash should take less than one second.
   - [Hash algorithm](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#work-factors)
-    - Argon2: Argon2id is better than scrypt & bcrypt
-    - scrypt
-    - bcrypt: The minimum work factor for bcrypt should be 10. Has a maximum length input length of 72 bytes.
-      - [Shucking](https://security.stackexchange.com/questions/234794/is-bcryptstrtolowerhexmd5pass-ok-for-storing-passwords)
-        - Shucking can be used if a hash without salt is used to reduce input length for bcrypt
-        - Dictionary attack with digest
-    - PBKDF2
+    - As a general rule, calculating a hash should take less than one second.
+      - Argon2: Argon2id is better than scrypt & bcrypt
+      - scrypt
+      - bcrypt: The minimum work factor for bcrypt should be 10. Has a maximum length input length of 72 bytes.
+        - [Shucking](https://security.stackexchange.com/questions/234794/is-bcryptstrtolowerhexmd5pass-ok-for-storing-passwords)
+          - Shucking can be used if a hash without salt is used to reduce input length for bcrypt
+          - Dictionary attack with digest
+      - PBKDF2
 - [Reset password](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#introduction)
-  - Use a side-channel to communicate the method to reset their password.
-  - Use URL tokens for the simplest and fastest implementation.
+  - Identify user
+    - Use a side-channel to communicate the method to reset their password.
+    - [One time password](https://github.com/raymond-chia/Note/blob/main/Security.md#one-time-password)
   - Do not make a change to the account until a valid token is presented, such as locking out the account.
-  - Implement protections against automated submissions such as CAPTCHA, rate-limiting or other controls.
+  - Implement protections against automated submissions such as CAPTCHA, rate-limiting, security questions or other controls.
+  - Ensure that the reset password page adds the Referrer Policy tag with the noreferrer value in order to avoid referrer leakage.
   - The user should confirm the new password they set by writing it twice.
   - Ensure that a secure password policy is in place, and is consistent with the rest of the application.
-  - [One time password](https://github.com/raymond-chia/Note/blob/main/Security.md#one-time-password)
+  - Send the user an email informing them that their password has been reset (do not send the password in the email!).
+  - Once they have set their new password, the user should then login through the usual mechanism. Don't automatically log the user in, as this introduces additional complexity to the authentication and session handling code, and increases the likelihood of introducing vulnerabilities.
+  - Ask the user if they want to invalidate all of their existing sessions, or invalidate the sessions automatically.
 
 ## Fiddler
 - [當作 Proxy](https://docs.telerik.com/fiddler/configure-fiddler/tasks/usefiddlerasreverseproxy)
@@ -124,7 +128,11 @@
   - Sufficiently long to protect against brute-force attacks.
   - Stored securely.
   - Single use and expire after an appropriate period.
-- [Reset password](https://github.com/raymond-chia/Note/blob/main/Security.md#email-login)
+  - Linked to an individual user in the database.
+  - URL tokens
+    - Generate a token to the user and attach it in the URL query string.
+    - Send this token to the user via email.
+  - [Reset password](https://github.com/raymond-chia/Note/blob/main/Security.md#email-login)
 
 ## Wireshark
 - for every new TLS 1.3 session handshake, session keys will be created and stored in a local SSL key log file
