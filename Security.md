@@ -23,6 +23,7 @@
   - [查看 CPU arch](https://blog.csdn.net/qq_36317441/article/details/89494686)
     - adb shell getprop ro.product.cpu.abi
 - decompile [ref](https://stackoverflow.com/questions/3593420/is-there-a-way-to-get-the-source-code-from-an-apk-file) [ref](https://www.decompiler.com/)
+  - [Error occurred during initialization of VM; Could not reserve enough space for object heap](https://stackoverflow.com/questions/20307923/error-occurred-during-initialization-of-vm-could-not-reserve-enough-space-for-ob)
 
 ## [Cross-site request forgery](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - 假裝受害者發送 request, 執行危險操作
