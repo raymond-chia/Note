@@ -38,6 +38,34 @@
 - Remember that any Cross-Site Scripting (XSS) can be used to defeat all CSRF mitigation techniques!
 - 別相信 header 資訊 ( picoctf who are you )
 
+## Email login
+- [Avoid user enumeration attack](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#introduction)
+  - Return a consistent message for both existent and non-existent accounts.
+  - Ensure that the time taken for the user response message is uniform.
+- [Storage](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+  - Salt
+  - Pepper
+    - HMAC
+    - Encrypt
+    - Rotation (how ?)
+  - As a general rule, calculating a hash should take less than one second.
+  - [Hash algorithm](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html#work-factors)
+    - Argon2: Argon2id is better than scrypt & bcrypt
+    - scrypt
+    - bcrypt: The minimum work factor for bcrypt should be 10. Has a maximum length input length of 72 bytes.
+      - [Shucking](https://security.stackexchange.com/questions/234794/is-bcryptstrtolowerhexmd5pass-ok-for-storing-passwords)
+        - Shucking can be used if a hash without salt is used to reduce input length for bcrypt
+        - Dictionary attack with digest
+    - PBKDF2
+- [Reset password](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#introduction)
+  - Use a side-channel to communicate the method to reset their password.
+  - Use URL tokens for the simplest and fastest implementation.
+  - Do not make a change to the account until a valid token is presented, such as locking out the account.
+  - Implement protections against automated submissions such as CAPTCHA, rate-limiting or other controls.
+  - The user should confirm the new password they set by writing it twice.
+  - Ensure that a secure password policy is in place, and is consistent with the rest of the application.
+  - [One time password](https://github.com/raymond-chia/Note/blob/main/Security.md#one-time-password)
+
 ## Fiddler
 - [當作 Proxy](https://docs.telerik.com/fiddler/configure-fiddler/tasks/usefiddlerasreverseproxy)
 - [Capture Android](https://docs.telerik.com/fiddler/configure-fiddler/tasks/configureforandroid)
@@ -91,12 +119,12 @@
   - 30 個人有一個人在某一天的機率是 1 - (364/365)**30 = 0.079
   - 30 個人至少有兩人相同生日的機率 [1 - 365!/((365-30)! * 365**30)](https://zh.wikipedia.org/wiki/%E7%94%9F%E6%97%A5%E5%95%8F%E9%A1%8C) = 0.706
   - https://auth0.com/blog/birthday-attacks-collisions-and-password-strength/
-  - 不能單靠 one time password 判斷身份
-- 密碼組合: H 種, rate limit: R 次
-  - 一人連猜 R 次都錯的機率 (H - 1)/H * (H - 2)/H * ... (H - R)/H = `(H - 1)! / ((H - R - 1)! * H ** R)`
-  - 連猜 N 人,每人 R 次都錯的機率 ((H - 1)! / ((H - R - 1)! * H ** R)) ** N
-    - 六位數, rate limit 3 次, 猜 115500 人有 50% 命中
-- [Reset password](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html)
+- [Ensure that generated tokens or codes are:](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#introduction)
+  - Randomly generated using a cryptographically safe algorithm.
+  - Sufficiently long to protect against brute-force attacks.
+  - Stored securely.
+  - Single use and expire after an appropriate period.
+- [Reset password](https://github.com/raymond-chia/Note/blob/main/Security.md#email-login)
 
 ## Wireshark
 - for every new TLS 1.3 session handshake, session keys will be created and stored in a local SSL key log file
