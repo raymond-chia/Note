@@ -22,8 +22,7 @@
     5. 設定 proxy host name & proxy port
   - [查看 CPU arch](https://blog.csdn.net/qq_36317441/article/details/89494686)
     - adb shell getprop ro.product.cpu.abi
-- decompile [ref](https://stackoverflow.com/questions/3593420/is-there-a-way-to-get-the-source-code-from-an-apk-file) [ref](https://www.decompiler.com/)
-  - [Error occurred during initialization of VM; Could not reserve enough space for object heap](https://stackoverflow.com/questions/20307923/error-occurred-during-initialization-of-vm-could-not-reserve-enough-space-for-ob)
+- [decompile](https://github.com/raymond-chia/Note/blob/main/Security.md#disassemble--decompile--debug)
 
 ## [Cross-site request forgery](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html)
 - 假裝受害者發送 request, 執行危險操作
@@ -38,6 +37,15 @@
     - Set cookie attribute properly: SameSite, HTTPOnly, Secure
 - Remember that any Cross-Site Scripting (XSS) can be used to defeat all CSRF mitigation techniques!
 - 別相信 header 資訊 ( picoctf who are you )
+
+## Disassemble / Decompile / Debug
+- `ghidra`: to assembly and c maybe ?
+- `strace`: detect system call
+- `ltrace`: detect lib call
+- `objdump`
+- `gdb + gef`
+- Decompile Java: [ref](https://stackoverflow.com/questions/3593420/is-there-a-way-to-get-the-source-code-from-an-apk-file) [ref](https://www.decompiler.com/)
+  - [Error occurred during initialization of VM; Could not reserve enough space for object heap](https://stackoverflow.com/questions/20307923/error-occurred-during-initialization-of-vm-could-not-reserve-enough-space-for-ob)
 
 ## Email login
 - [Avoid user enumeration attack](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html#introduction)
@@ -136,7 +144,7 @@
   - [Reset password](https://github.com/raymond-chia/Note/blob/main/Security.md#email-login)
 
 ## Wireshark
-- for every new TLS 1.3 session handshake, session keys will be created and stored in a local SSL key log file
+- For every new TLS 1.3 session handshake, session keys will be created and stored in a local SSL key log file
   1. 指定 SSL key log file 儲存位置
   2. Wireshark `edit/preferences/Protocols/TLS/(Pre)-Master-Secret log filename` 設定 SSL key log file 位置
 - https://www.youtube.com/watch?v=GMNOT1aZmD8
