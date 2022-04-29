@@ -120,7 +120,84 @@
   8. Use apksigner to sign the app
       - [keystore](https://keystore-explorer.org/downloads.html)
 
+## OAuth 1.0a
+1. The consumer obtains an unauthorized request token
+2. The user authorizes the request token
+3. The consumer exchanges the request token for an access token
+- https://oauth.net/core/1.0a/
+- Parameters are separated by comma
+  - request token
+    ```
+    Authorization:
+      OAuth oauth_callback="http%3A%2F%2Flocalhost%2Fsign-in-with-twitter%2F",
+            oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w",
+            oauth_nonce="ea9ec8429b68d6b77cd5600adbbb0456",
+            oauth_signature="F1Li3tvehgcraF8DMJ7OyxO4w9Y%3D",
+            oauth_signature_method="HMAC-SHA1",
+            oauth_timestamp="1318467427",
+            oauth_version="1.0"
+    ```
+  - exchange access token / request protected resource
+    ```
+    Authorization:
+      OAuth oauth_consumer_key="cChZNFj6T5R0TigYB9yd1w",
+            oauth_nonce="a9900fe68e2573b27a37f10fbad6a755",
+            oauth_signature="39cipBtIOHEEnybAR4sATQTpl2I%3D",
+            oauth_signature_method="HMAC-SHA1",
+            oauth_timestamp="1318467427",
+            oauth_token="NPcudxy0yU5T3tBzho7iCotZ3cnetKwcTIRlX0iwRl0",
+            oauth_version="1.0"
+    ```
+  - Entropy of Secret: use CSPRNG to generate long enough secrets
+  - CSRF: use state (OAuth 2.0) / store token verifier in cookie
+  - Clickjacking: disable frames e.g. X-Frame-Options
+
 ## OAuth 2.0
+1. User authorizes the authorization request from client ( protected by TLS )
+2. Client exchanges the authorization grant for access token ( protected by TLS )
+- http://oauthbible.com/#oauth-2-two-legged
+- https://habr.com/en/post/449182/
+- http://andrisatteka.blogspot.com/2014/09/how-microsoft-is-giving-your-data-to.html
+  - Open redirect by
+    1. redirected to another authorization endpoint (should failed)
+    1. rejected and redirected to attacker's website
+  - How to prevent
+    - exact match redirect uri
+    - server authenticates client at token endpoint
+- https://security.stackexchange.com/questions/140883/is-it-safe-to-store-the-state-parameter-value-in-cookie
+- https://dhavalkapil.com/blogs/Attacking-the-OAuth-Protocol/
+  - 1. Attacker tricks victim to log in attacker's account with given provider by CSRF.
+    1. Attacker tricks victim to bind victim's account with given provider by CSRF.
+    - use CSRF token to avoid auth request not originated from user
+  - 1. Attacker initiates an auth request and obtains auth code.
+    1. Attacker tricks victim to bind victim's account with given auth code by CSRF.
+    - use the parameter, state, which is user session specific
+  - 1. Attacker injects XSS within a web-page under client's domain.
+    1. Attacker tricks victim to obtain auth code with redirect uri as injected web-page.
+    - check redirect uri from authorization endpoint & access token endpoint
+    - exact match redirect uri instead of partial match
+  - 1. Attacker registers a client with a provider.
+    1. Attacker tricks a victim to log in the client with given provider.
+    1. Attacker obtains victim's access token of given provider.
+    1. If some clients using implicit flow don't check which client the access token is bound with, attacker can log in as victim.
+    - check which client the access token was issued to
+    - not using implicit flow
+  - 1. Provider validates parameters other than redirect uri first and redirect to given redirect uri when validation fails before validating redirect uri.
+    1. Attacker craft a url with invalid arguments including redirect uri.
+    1. Provider behaves as an open redirector when redirect uri and at least one more argument is invalid.
+    - always validate redirect uri first
+- https://sakurity.com/oauth
+- https://portswigger.net/web-security/oauth
+    - exploit discrepancies between the parsing of the URI
+- https://www.oauth.com/oauth2-servers/authorization/the-authorization-response/
+- https://tools.ietf.org/html/draft-ietf-oauth-security-topics-13
+- Ensure to add the Referrer Policy tag with the noreferrer value in order to avoid referrer leakage.
+- Do not pass authentication code / access token in url
+  - No implicit grant type
+- Mix up
+  - One of the authorization server is operated by attacker
+  - Client stores the authorization server chosen by user in session
+  - Client uses the same redirection endpoint for all authorization servers
 - Proof Key for Code Exchange
   - [When public clients (e.g., native and single-page applications) request Access Tokens, some additional security concerns are posed that are not mitigated by the Authorization Code Flow alone.](https://auth0.com/docs/get-started/authentication-and-authorization-flow/authorization-code-flow-with-proof-key-for-code-exchange-pkce)
     - Cannot securely store a Client Secret.
