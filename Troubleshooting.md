@@ -11,6 +11,6 @@
     1. `brew install docker-machine docker`
     2. `brew install --cask virtualbox`
     3. `docker-machine create -d virtualbox --virtualbox-hostonly-cidr "192.168.63.1/24" default` // (use `docker-machine rm default` if needed)
-    4. eval "$(docker-machine env default)"
+    4. `eval "$(docker-machine env default)"`
     5. `netstat -rn` on mac/linux host
     6. search for Netif == vboxnet
