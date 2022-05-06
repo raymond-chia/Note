@@ -46,6 +46,7 @@
 - `gdb + gef`
 - Decompile Java: [ref](https://stackoverflow.com/questions/3593420/is-there-a-way-to-get-the-source-code-from-an-apk-file) [ref](https://www.decompiler.com/)
   - [Error occurred during initialization of VM; Could not reserve enough space for object heap](https://stackoverflow.com/questions/20307923/error-occurred-during-initialization-of-vm-could-not-reserve-enough-space-for-ob)
+- C#: [dnSpy](https://github.com/dnSpy/dnSpy/releases), [Rider](https://www.jetbrains.com/rider/), [ILSpy](https://github.com/icsharpcode/ILSpy)
 
 ## DKIM
 
