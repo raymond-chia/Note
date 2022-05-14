@@ -14,3 +14,8 @@
     4. `eval "$(docker-machine env default)"`
     5. `netstat -rn` on mac/linux host
     6. search for Netif == vboxnet
+
+- Keyboard event
+  - code = [Physical keys](https://api.flutter.dev/flutter/services/PhysicalKeyboardKey-class.html). Keys which represent a `particular key location` on a QWERTY keyboard. It ignores any modifiers, modes, or keyboard layouts which may be in effect.
+  - key = Logical keys. Keys which are interpreted in the `context` of any modifiers, modes, or keyboard layouts which may be in effect.
+  - https://youtu.be/jLqTXkFtEH0?t=360
