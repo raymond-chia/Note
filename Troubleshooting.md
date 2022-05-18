@@ -29,3 +29,8 @@
 ## Golang manage multiple version
 - https://go.dev/doc/manage-install#installing-multiple
 - Use vscode
+
+## Mongo replicaset connection
+- To avoid automatic server discovery and getting stuck on connecting while using MongoDB connection string, specify a direct connect should be made. This can be done by providing `directConnection=true` or `connect=direct` option in the connection string.
+- https://pkg.go.dev/go.mongodb.org/mongo-driver/mongo/options#ClientOptions.SetDirect
+
