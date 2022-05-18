@@ -20,6 +20,12 @@
   - key = Logical keys. Keys which are interpreted in the `context` of any modifiers, modes, or keyboard layouts which may be in effect.
   - https://youtu.be/jLqTXkFtEH0?t=360
 
+## Open browser from terminal
+- Mac: `open https://example.com`
+  - https://superuser.com/questions/85151/how-to-open-a-browser-from-terminal
+- Linux
+  - https://askubuntu.com/questions/682542/is-there-a-way-to-open-browser-using-terminal
+
 ## Golang manage multiple version
 - https://go.dev/doc/manage-install#installing-multiple
 - Use vscode
