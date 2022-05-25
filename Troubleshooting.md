@@ -14,6 +14,9 @@
 #### Golang manage multiple version
 - https://go.dev/doc/manage-install#installing-multiple
 - Use vscode
+#### `Gone 410` with private repository
+- GOPRIVATE={repository host}
+  - https://stackoverflow.com/questions/27500861/whats-the-proper-way-to-go-get-a-private-repository
 
 ## Input
 #### Keyboard event
