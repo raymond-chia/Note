@@ -36,6 +36,12 @@
   - [Google load balancer restarts periodically](https://cloud.google.com/load-balancing/docs/https#timeouts_and_retries)
   - https://blog.percy.io/tuning-nginx-behind-google-cloud-platform-http-s-load-balancer-305982ddb340#3b71
 
+## OAuth
+#### 1.0a
+- Make sure consumer key & access token secret are escaped
+  - github.com/gomodule/oauth1 v0.2.0 escapes consumer key & access token secret automatically
+  - github.com/dghubble/oauth1 v0.7.1 does NOT escape consumer key & access token secret automatically
+
 ## Terminal
 #### Symbolic link
 - Windows: https://docs.microsoft.com/zh-tw/windows-server/administration/windows-commands/mklink
