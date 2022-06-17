@@ -47,6 +47,7 @@
 - Windows: https://docs.microsoft.com/zh-tw/windows-server/administration/windows-commands/mklink
   1. Use command prompt ( not powershell or something else )
   2. mklink `{/d or /j}` `{link name}` `{path to target}`
+- Linux: ln -s
 #### Open browser from terminal
 - Mac: `open https://example.com`
   - https://superuser.com/questions/85151/how-to-open-a-browser-from-terminal
