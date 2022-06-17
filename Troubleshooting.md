@@ -15,6 +15,10 @@
     5. `netstat -rn` on mac/linux host
     6. search for Netif == vboxnet
 
+#### Run with privilege
+- docker run --privileged registry:version
+  - https://docs.docker.com/engine/reference/commandline/run/#full-container-capabilities---privileged
+
 ## GKE
 - 
   1. 按下 Deploy, 並按照表格填寫
