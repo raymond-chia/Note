@@ -15,6 +15,11 @@
     5. `netstat -rn` on mac/linux host
     6. search for Netif == vboxnet
 
+## GKE
+- 
+  1. 按下 Deploy, 並按照表格填寫
+  2. 按下 expose, 填寫 dockerfile expose 的 port
+
 ## Golang
 #### Golang manage multiple version
 - https://go.dev/doc/manage-install#installing-multiple
