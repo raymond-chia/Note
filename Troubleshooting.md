@@ -20,6 +20,9 @@
   - https://docs.docker.com/engine/reference/commandline/run/#full-container-capabilities---privileged
 
 ## Golang
+#### Build for Linux
+- 64-bit: GOOS=linux GOARCH=amd64 go build
+  - https://freshman.tech/snippets/go/cross-compile-go-programs/
 #### Golang manage multiple version
 - https://go.dev/doc/manage-install#installing-multiple
 - Use vscode
@@ -28,16 +31,19 @@
   - https://stackoverflow.com/questions/27500861/whats-the-proper-way-to-go-get-a-private-repository
 
 ## Google
-- Cloud Run
-  1. gcloud auth configure-docker
-  2. docker build -t {registry}:{version} .
-  3. docker push {registry}:{version}
-  4. gcloud run deploy --allow-unauthenticated --image {registry}:{version}
-    - 如果沒有權限設定 `--allow-unauthenticated`, 可以請有權限的人在 web console 對應 service 的 `TRIGGERS`/`Authentication` 設定 `Allow unauthenticated invocations`
-  - On success, the command line displays the service URL.
-    - 也可以查詢 web console 對應 service 的 DETAILS
-    - https://cloud.google.com/run/docs/quickstarts/build-and-deploy/deploy-go-service#deploy
-- GKE
+#### Cloud Run
+  1. prepare files to build docker image
+      1. create binary that will be executed in docker container
+  2. gcloud auth configure-docker
+  3. docker build -t {registry}:{version} .
+  4. docker push {registry}:{version}
+  5. gcloud run deploy --allow-unauthenticated --image {registry}:{version} --port {port}
+      - 如果沒有權限設定 `--allow-unauthenticated`, 可以請有權限的人在 web console 對應 service 的 `TRIGGERS`/`Authentication` 設定 `Allow unauthenticated invocations`
+      - gcloud run deploy --help for more options
+      - On success, the command line displays the service URL.
+          - 也可以查詢 web console 對應 service 的 DETAILS
+          - https://cloud.google.com/run/docs/quickstarts/build-and-deploy/deploy-go-service#deploy
+#### GKE
   1. 按下 Deploy, 並按照表格填寫
   2. 按下 expose, 填寫 dockerfile expose 的 port
 
