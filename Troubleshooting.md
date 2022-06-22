@@ -34,6 +34,9 @@
   3. docker push {registry}:{version}
   4. gcloud run deploy --allow-unauthenticated --image {registry}:{version}
     - 如果沒有權限設定 `--allow-unauthenticated`, 可以請有權限的人在 web console 對應 service 的 `TRIGGERS`/`Authentication` 設定 `Allow unauthenticated invocations`
+  - On success, the command line displays the service URL.
+    - 也可以查詢 web console 對應 service 的 DETAILS
+    - https://cloud.google.com/run/docs/quickstarts/build-and-deploy/deploy-go-service#deploy
 - GKE
   1. 按下 Deploy, 並按照表格填寫
   2. 按下 expose, 填寫 dockerfile expose 的 port
