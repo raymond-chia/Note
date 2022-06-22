@@ -19,11 +19,6 @@
 - docker run --privileged registry:version
   - https://docs.docker.com/engine/reference/commandline/run/#full-container-capabilities---privileged
 
-## GKE
-- 
-  1. 按下 Deploy, 並按照表格填寫
-  2. 按下 expose, 填寫 dockerfile expose 的 port
-
 ## Golang
 #### Golang manage multiple version
 - https://go.dev/doc/manage-install#installing-multiple
@@ -31,6 +26,17 @@
 #### `Gone 410` with private repository
 - GOPRIVATE={repository host}
   - https://stackoverflow.com/questions/27500861/whats-the-proper-way-to-go-get-a-private-repository
+
+## Google
+- Cloud Run
+  1. gcloud auth configure-docker
+  2. docker build -t {registry}:{version} .
+  3. docker push {registry}:{version}
+  4. gcloud run deploy --allow-unauthenticated --image {registry}:{version}
+    - 如果沒有權限設定 `--allow-unauthenticated`, 可以在 web console 對應 service 的 `TRIGGERS`/`Authentication` 設定 `Allow unauthenticated invocations`
+- GKE
+  1. 按下 Deploy, 並按照表格填寫
+  2. 按下 expose, 填寫 dockerfile expose 的 port
 
 ## Input
 #### Keyboard event
