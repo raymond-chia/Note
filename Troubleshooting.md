@@ -3,6 +3,9 @@
   - give verbose output and also will abort your script immediately if part of the script fails.
   - https://stackoverflow.com/questions/38342992/what-does-ex-option-used-in-bash-bin-bash-ex-mean
 
+## Data
+- cache related introduction: https://github.com/SanderMertens/ecs-faq#data-oriented-design
+
 ## Docker
 #### Install docker on mac
   - [Use docker-machine + virtualbox](https://stackoverflow.com/questions/44084846/cannot-connect-to-the-docker-daemon-on-macos#answer-49719638)
