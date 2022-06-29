@@ -32,6 +32,8 @@
 #### `Gone 410` with private repository
 - GOPRIVATE={repository host}
   - https://stackoverflow.com/questions/27500861/whats-the-proper-way-to-go-get-a-private-repository
+#### Variables
+- `go env` can get GOPATH, GOROOT, ...
 
 ## Google
 #### Cloud Run
