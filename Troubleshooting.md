@@ -76,6 +76,10 @@
   - github.com/gomodule/oauth1 v0.2.0 escapes consumer key & access token secret automatically
   - github.com/dghubble/oauth1 v0.7.1 does NOT escape consumer key & access token secret automatically
 
+## Publish server
+- [Google cloud run](https://github.com/raymond-chia/Note/blob/main/Troubleshooting.md#cloud-run)
+- [ngrok](https://ngrok.com/)
+
 ## Terminal
 #### Symbolic link
 - Windows: https://docs.microsoft.com/zh-tw/windows-server/administration/windows-commands/mklink
