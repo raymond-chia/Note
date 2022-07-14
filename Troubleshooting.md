@@ -6,6 +6,23 @@
 ## Data
 - cache related introduction: https://github.com/SanderMertens/ecs-faq#data-oriented-design
 
+## Database
+#### Dragonfly
+- in memory
+#### etcd
+- in disk
+- for Kubernetes
+#### MongoDB
+- in disk
+###### replicaset connection
+- To avoid automatic server discovery and getting stuck on connecting while using MongoDB connection string, specify a direct connect should be made. This can be done by providing `directConnection=true` or `connect=direct` option in the connection string.
+- https://pkg.go.dev/go.mongodb.org/mongo-driver/mongo/options#ClientOptions.SetDirect
+#### Redis
+- in memory
+#### ZooKeeper
+- in memory
+- jvm 設定似乎很麻煩, 例如 garbage collection（跟使用的資料有關）
+
 ## Docker
 #### Install docker on mac
   - [Use docker-machine + virtualbox](https://stackoverflow.com/questions/44084846/cannot-connect-to-the-docker-daemon-on-macos#answer-49719638)
@@ -57,11 +74,6 @@
   - code = [Physical keys](https://api.flutter.dev/flutter/services/PhysicalKeyboardKey-class.html). Keys which represent a `particular key location` on a QWERTY keyboard. It ignores any modifiers, modes, or keyboard layouts which may be in effect.
   - key = Logical keys. Keys which are interpreted in the `context` of any modifiers, modes, or keyboard layouts which may be in effect.
   - https://youtu.be/jLqTXkFtEH0?t=360
-
-## MongoDB
-#### MongoDB replicaset connection
-- To avoid automatic server discovery and getting stuck on connecting while using MongoDB connection string, specify a direct connect should be made. This can be done by providing `directConnection=true` or `connect=direct` option in the connection string.
-- https://pkg.go.dev/go.mongodb.org/mongo-driver/mongo/options#ClientOptions.SetDirect
 
 ## Network
 #### Connection reset by peer
