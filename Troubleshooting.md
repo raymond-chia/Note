@@ -291,6 +291,10 @@ func F[T any, TPointer interface{
 - [useSelector](https://react-redux.js.org/api/hooks#useselector)
   - Allows you to extract data from the Redux store state
 
+#### Python
+
+- [venv](https://www.infoworld.com/article/3239675/virtualenv-and-venv-python-virtual-environments-explained.html)
+
 ## Network
 
 #### Connection reset by peer
