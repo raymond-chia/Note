@@ -1,0 +1,3 @@
+- https://marketplace.visualstudio.com/items?itemName=natqe.reload
+- https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens
+- ShellCheck
