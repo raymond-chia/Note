@@ -14,6 +14,24 @@
     - 根據之前用字, 決定下一個要抑制哪些字的機率
     - 如果沒有其他適合的字, 還是可能用被抑制的字
 - https://beta.character.ai
+- Distilling Step-by-Step https://www.ithome.com.tw/news/158902
+  - 小型專用模型有兩種訓練方式, 分別是微調 ( Fine-tuning ) 和蒸餾 ( Distillation )
+    - 微調使用人工註釋資料, 更新預先訓練的 BERT 或 T5 等規模較小的模型
+    - 蒸餾的概念則是將一個大型模型, 或稱為教師模型的知識, 轉移至一個比較小的學生模型
+      - 運用大型語言模型所生成的標籤, 訓練相同但規模較小的模型
+      - 雖然蒸餾法可以讓學生模型的規模和複雜性都遠低於教師模型, 效能卻可以接近或是超越教師模型
+  - 要達到良好的效能, 微調法需要人工生成標籤. 這個過程既昂貴又繁瑣
+  - 蒸餾法則需要大量未標記的資料, 且收集資料本身就並非一件簡單的事
+  - 逐步蒸餾法能夠讓研究人員以比標準微調或是蒸餾法少得多的訓練資料, 訓練一個更小且專用於特定任務的模型, 而且效能還可能可以優於 Few-Shot Prompted LLM
+  - Few-Shot Prompted LLM: 大型語言模型使用少量的樣本, 並透過提示來完成任務的方法, 像是要求語言模型完成翻譯任務. 研究人員便可以提供少量的英翻中樣本, 再給予新的提示問題, 期望模型能夠依據範例正確翻譯新問題
+  - 當大型語言模型被問到某些問題時, 能夠透過推理並給出最終答案. 這些中間的推理包含了可以完成任務需要的重要知識. 但是小型模型需要大量資料才能學到這些知識. 因此逐步蒸餾的核心想法, 便是從大型語言模型中擷取有用的自然語言解釋, 也就是中間的推理步驟, 然後使用這些解釋更有效地訓練小型模型
+  - 因此逐步蒸餾的步驟
+    1. 從大型語言模型中擷取解釋. 研究人員會提供少數範例. 這些範例包含問題, 中間的解釋和答案, 引導大型語言模型對新的問題產生相對應的解釋
+    2. 利用第一階段取得的解釋訓練小型模型. 小型模型學習由大型語言模型生成的中間推理步驟, 便能夠更好地預測答案
+
+#### Claude
+
+- 擅長寫程式 ??
 
 #### GPT
 
@@ -24,6 +42,41 @@
 ##### GPT Roles
 
 - https://github.com/f/awesome-chatgpt-prompts
+
+##### Copilot 範例
+
+- Bing 的 copilot 不適合產生程式碼 [2023/2](https://www.youtube.com/watch?v=8BBzaiAbxp4)
+  - 只適合搜尋
+  - 改用 OpenAI 或 VS Code
+- write a javascript method that uses 某種方法 to 達到某種目的
+- translate the javascript code above into R
+- analyze this error message: 錯誤內容
+
+#### Deepl
+
+- https://www.deepl.com/write
+
+#### AWS Bedrock
+
+> You don't have access to the model with the specified model ID.
+
+- 可能是要設定 model access: https://ap-northeast-1.console.aws.amazon.com/bedrock/home?region=ap-northeast-1#/modelaccess
+- 或者調整 boto3.client 的 region_name 參數
+  - 申請的時候也要注意地區. us-east-1 有比較多 model ??
+
+#### LangChain
+
+- framework for developing applications powered by large language models
+- 範例
+  - https://python.langchain.com/v0.2/docs/tutorials
+  - chat focused playground: https://python.langchain.com/v0.2/docs/langserve/#chat-playground
+  - 動態調整設定: https://python.langchain.com/v0.2/docs/how_to/configure
+
+#### 雜項
+
+- https://chatgpt.com/gpts
+- Retrieval Augmented Generation (RAG)
+  - 生成回應前參考指定知識庫
 
 ## GAN
 
@@ -38,10 +91,17 @@
   - https://github.com/AUTOMATIC1111/stable-diffusion-webui
     - api 文件在架設 stable diffusion server 的 `網址/docs`
     - command line arguments 加上 `--listen` 可以讓外界連
-    - https://colab.research.google.com/github/acheong08/Diffusion-ColabUI/blob/main/Diffusion_WebUI.ipynb#scrollTo=Y4qjIc1XXKWw
-    - https://github.com/camenduru/stable-diffusion-webui-colab/tree/v2.0
-  - https://github.com/DominikDoom/a1111-sd-webui-tagcomplete/blob/main/README_ZH.md
+  - https://github.com/comfyanonymous/ComfyUI
+    - https://github.com/ltdrdata/ComfyUI-Manager
+    - 用於安裝 comfy ui 相關功能
+    - 也是用 --listen 讓外界連
   - https://ai.dawnmark.cn/
+- Stable Zero123
+- multi view diffusion
+  - https://mv-dream.github.io
+  - 3d
+- tripo
+  - 3d
 - Midjourney
   - [prompts](https://www.techbang.com/posts/105911-free-ultimate-chatgpt-tips-midjourney-treasure-god-map-1200?fbclid=IwAR0yMPvigCn8-llVd4Wrw-KSAJZaVuloEBnhkLr6YRrc_jaAKawDW0-B7r4_aem_th_AeOP0Rq4RuClf3tCCW6xeXcv1tHWUL_s0MRAAX48pVPG6Qku5f4J-9yQENyr_2PZPf0)
 - visual chatgpt
@@ -95,7 +155,7 @@
 - seg 用的顏色要參考 ade20k
 - 紙娃娃流程 https://vocus.cc/article/649803f4fd897800019abf84?fbclid=IwAR3Asd9exIJZ6qpTMoE-eQIKsW7jrHoChU3KBg2ucp8VLrunLnRLbWPRwQM
 
-##### 其他配件
+##### 其他
 
 - models: https://rentry.org/sdmodels
   - [調整](https://www.youtube.com/watch?v=dVjMiJsuR5o)
@@ -104,28 +164,63 @@
     - Textual Inversion: 訓練過程是去調整文字提詞對模型產圖的精準度. KB
     - LoRA: 在原有的大模型裡加入新的中間層, 訓練過程只調整那些新的中間層權重. 幾百 MB
     - Hypernetworks: 跟 LoRA 很像, 但是間接透過一個 Hypernetwork 模型去對原本的模型做改變. 幾百 MB
+  - https://civitai.com/models/260267/animagine-xl-v3
 - latent couple: 不同區塊可以用不同的 prompt
 - cutoff: 避免元素互相影響 https://mnya.tw/cc/word/1973.html
 - 修手: https://github.com/jexom/sd-webui-depth-lib
-- posex: 調整 openpose
+- 調整 openpose https://www.youtube.com/watch?v=n1LOPci7ICk
 - Roop: 換臉
 - GLIGen: 分區指定 prompt
+  - https://github.com/mut-ex/gligen-gui
 - Inpaint Anything: 協助產生 inpaint 的 mask
-- OneButtonPrompt, Tag Autocomplete: 幫忙產生 prompt
+- 透明背景: https://github.com/layerdiffusion/sd-forge-layerdiffusion
+- 兩張圖產生中間動畫 https://x.com/tds_95514874/status/1693603992092524662?s=46&t=y26bJt9O7xPNkMWJx-w1og
+- LCM: 加速產圖
+- Create Consistent, Editable AI Characters & Backgrounds (ComfyUI): https://www.youtube.com/watch?v=849xBkgpF3E
 - source
   - https://www.youtube.com/@Aitrepreneur
   - https://mnya.tw/cc/word/category/ai-drawing
+  - https://www.kadokado.com.tw/book/22947
 
 ##### 範例
 
 - 產生 3D 角色: https://talesofsyn.com/posts/creating-3d-character-models
 - 產生 isometric 場地: https://talesofsyn.com/posts/creating-isometric-rpg-game-backgrounds
 - 紙娃娃: https://vocus.cc/article/649803f4fd897800019abf84?fbclid=IwAR3Asd9exIJZ6qpTMoE-eQIKsW7jrHoChU3KBg2ucp8VLrunLnRLbWPRwQM
+- 點光源: https://x.com/toyxyz3/status/1796226845517783264?s=46&t=y26bJt9O7xPNkMWJx-w1og
+- 用 pseudo code 產生連貫的圖片
+  - https://www.youtube.com/watch?v=3rb-54Q5fig
+  - 雖然用於整理文字, 但是可以參考 https://baoyu.io/blog/prompt-engineering/advanced-prompting-using-pseudocode-to-control-llm-output#google_vignette
+- 出圖 -> inpaint 要動的區域產生 A B 兩張圖 -> tooncrafter 製作短動畫用 AB / BA 組合 -> 頭尾相接後就成為 loop 動畫
+- 教學: https://www.facebook.com/100000149111577/posts/8319473864734168/?rdid=JGebkdkWGBTfANI2
+
+## Text to 3D
+
+- tripo3d
+  - https://x.com/toyxyz3/status/1806932777386098715?s=46&t=y26bJt9O7xPNkMWJx-w1og
+
+## Music
+
+- https://github.com/GrandaddyShmax/audiocraft_plus ?
+- https://www.stableaudio.com/ ?
+- https://www.udio.com/blog/introducing-v1-5 ?
+
+## Video
+
+- 拖拉圖片 https://generative-dynamics.github.io
+- 搭配 stable diffusion ? https://github.com/hotshotco/hotshot-xl
+- 補幀數 (frame): Flowframes
+- Luma AI
+  - 參數下 live2d ??
+  - e.g. live2d standing motion, hair swaying, 2d, looped
 
 ## Voice
 
-- voice.ai
-- https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI
+- voice.ai ?
+- https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI ?
+- https://www.youtube.com/watch?v=9lsSSPnF67Q ?
+- 文字轉聲音 + 影片 https://www.heygen.com
+- 分離人的聲音 https://vocalremover.org/
 
 ## Collection
 
@@ -136,3 +231,4 @@
 - [PPO](https://en.wikipedia.org/wiki/Proximal_Policy_Optimization), SAC
 - Generative Adversarial Imitation Learning (GAIL)
 - Long Short Term Memory (LSTM)
+- text to image, 影片轉動畫 ? https://domoai.app/

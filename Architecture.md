@@ -10,6 +10,10 @@
 
 <image src=https://user-images.githubusercontent.com/39833336/211969464-6d6a4a37-1db7-44f5-a079-96ce6181315a.png width=500> <image src=https://user-images.githubusercontent.com/39833336/211969480-e58acef7-6825-4ca6-ab18-f959b4705f4d.png width=500>
 
+## Clean Code
+
+- https://gist.github.com/wojteklu/73c6914cc446146b8b533c0988cf8d29
+
 ---
 
 - https://www.youtube.com/watch?v=tKbV6BpH-C8&t=720s
@@ -17,6 +21,10 @@
 1. data structure
 2. profile
 3. 實作細節, memory 利用方式
+
+## Go
+
+- https://www.youtube.com/watch?v=MzTcsI6tn-0
 
 ---
 
