@@ -5,11 +5,26 @@
 - 預先準備
 - 編寫文件
 - 減少人工介入
+- 追求 simplicity
 
-### Error Budget
+1. embrace risk
+2. service level objectives ??
+3. eliminate toil
+4. monitor
+5. automation
+6. release engineering
+7. simplicity
 
-- 99.99% `availability` == 0.01% `unavailability` == 0.01% `error budget`
-  - 也可以設定其他數字
+### Embrace risk
+
+#### Error Budget
+
+- 100% reliability 不現實
+  - 用戶裝置都無法 100%
+- 根據服務需求決定 availability
+  - 99.99% `availability` == 0.01% `unavailability` == 0.01% `error budget`
+    - 也可以設定其他數字
+- 偵測 unplanned downtime 或 unsuccessful request
 - 盡情更新, 直到用完 error budget
 
 ### Monitor
@@ -38,6 +53,20 @@
 - 人工操作的時間上限 50%. 剩下時間拿去開發取代人工的程式
   - 讓開發人員分擔部份工作
 
+## Certificate
+
+- Crt.sh 查詢 certificate
+  - 注意不要用到 precertificate
+    - 是 ca 產生 certificate 的中間產物
+- certificate chain
+  - https://www.ietf.org/rfc/rfc2246.txt
+  - certificate list is a sequence (chain) of X.509v3 certificates
+  - the sender's certificate must come first in the list
+  - each following certificate must directly certify the one preceding it
+  - root certificate authority may optionally be omitted from the chain
+- The certificate signature is verified using the public key in the issuer's certificate
+  - https://www.ibm.com/docs/en/ztpf/1.1.0.15?topic=ca-certificate-chain-verification
+
 ## Database
 
 - Point in time recovery (以 MongoDB 為例)
@@ -48,19 +77,108 @@
 
 ### Redis
 
-- 設定 /etc/redis/redis.conf
-  - /etc/redis/sentinel.conf
-  - 在 cli 打 `INFO`, `CONFIG GET *`
-- Persistence
-  - RDB: snapshot
-  - AOF: 操作紀錄
-    - fsync 保存紀錄到 disk
+#### 設定
+
+- /etc/redis/redis.conf
+- /etc/redis/sentinel.conf
+- 範例: https://redis.io/docs/latest/operate/oss_and_stack/management/config-file
+- 在 cli 打 `INFO`, `CONFIG GET *`
+  - 自動抓 master 的 info: `redis-cli -h $(redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster | head -1) info`
+- 在 shell 打 `redis-cli -p 26379 info sentinel`
+- 在 shell 打 `redis-cli info replication`
+- 存目前的設定到 redis.conf
+  - `redis-cli config rewrite`
+  - https://redis.io/docs/latest/commands/config-rewrite/
+
+#### node 異動
+
+- 更新 nodes 後, `redis-cli -h {each node} -p 26379 sentinel reset {master regex}`
+  - clear state (failover in progress, replicas, sentinels)
+- `redis-cli -h {any node} -p 26379 sentinel failover {master name}`
+  - master name is usually mymaster
+- failover (primary switch) 可能 rollback ??
+
+##### Cluster
+
+- https://redis.io/docs/latest/commands/cluster-failover/
+  - 主動 failover 沒有 data loss, 有 downtime, 可能失敗
+- https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/
+  - Write safety: 如果 write 沒有備份到 replica, 且 master 死亡, 會有 data loss  
+    或者 write 太慢才到而 master 已經變成 replica
+  - Availability: 如果有一組 master + replica 失聯, 就會無法繼續服務
+- > Nodes use a gossip protocol to propagate information about the cluster in order to discover new nodes, to send ping packets to make sure all the other nodes are working properly, and to send cluster messages needed to signal specific conditions [ref](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/)
+  - 新增 node 時: `CLUSTER MEET ip port`
+
+##### Sentinel
+
+- https://redis.io/docs/latest/commands/failover/
+  - 主動 failover 沒有 data loss, 有 downtime, 可能失敗
+- replication sync 失敗:
+  - master buffer 不夠: https://blog.csdn.net/my_tiantian/article/details/89402507
+    - 取消限制: `redis-cli -h {master} config set client-output-buffer-limit "slave 0 0 0"`
+    - 還原: `redis-cli -h {master} config set client-output-buffer-limit "slave 256mb 64mb 60"`
+  - 看 bgsave 跟 bgrewriteaof 用量
+    - bgsave
+      - dump.rdb 或 appendonly.aof.{pid}.base.rdb ??
+      - 看 rdb cow ??
+    - bgrewriteaof
+      - appendonly.aof.{pid}.incr.aof ??
+      - 看 aof cow ??
+
+#### Performance
+
+- https://blog.palark.com/failure-with-redis-operator-and-redis-data-analysis-tools/
+  - LATENCY doctor
+    - If you have very large objects that are often deleted, expired, or evicted, try to fragment those objects into multiple smaller objects
+    - https://mp.weixin.qq.com/s?__biz=Mzg2NTEyNzE0OA==&mid=2247483677&idx=1&sn=5c320b46f0e06ce9369a29909d62b401
+    - `redis-cli --bigkeys`
+    - 過期相關設定 `lazyfree- lazy-expire yes`
+    - 刪除的指令 `unlink` 取代 `del`
+  - Redis-memory-analyzer
+- 判斷 cpu 是否不夠用 `redis-cli -h $(redis-cli -p 26379 SENTINEL get-master-addr-by-name mymaster | head -1) --latency` 不要超過 1~5ms ??
+
+#### Persistence
+
+- RDB: snapshot
+- AOF: 操作紀錄
+  - Append Only File
+  - fsync 保存紀錄到 disk
+  - 圖像化 https://github.com/xueqiu/rdr?tab=readme-ov-file
   - 二合一: aof-use-rdb-preamble
-  - https://redis.io/docs/management/persistence/
+    - 可以抑制 AOF 大小
+    - 跟 RDB 無關. 可以關掉 RDB. https://github.com/redis/redis/issues/11520
+- 可能發生的錯誤
+  - AOF fsync is taking too long
+  - AOF rewrite
+  - https://redis.io/docs/management/optimization/latency/
+  - https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/#backing-up-aof-persistence
+- https://redis.io/docs/management/persistence/
+- 依靠 RDB 復原 Redis: https://stackoverflow.com/questions/14497234/how-to-recover-redis-data-from-snapshotrdb-file-copied-from-another-machine
+
+#### 雜項
+
+- redis-cli -n={db number} {command} | xargs redis-cli -n={db number} {command}
+  - 使用 sentinel 時, port 要是 26379
+    - command line 還是可以用 6379
+- TTL 會依據系統時間判定
+  - 設定幾秒後過期 => 計算實際過期時間 => 檢查時依據系統時間判斷
+  - 想要避免 redis 清掉還原的舊資料, 可以調整系統時間
+    - 調整 linux 時間: https://askubuntu.com/questions/683067/how-to-stop-automatic-time-update-via-terminal
+- redis info 欄位部分說明: https://github.com/redis/redis/issues/2375
+  - redis-cli info replication 的 `master_repl_offset` - `slave_repl_offset` 代表 slave 資料的 lag 程度
+
+### SQL
+
+#### PostgreSQL
+
+- database can be connected by all users by default
+  - need to be revoked after creating new db
+- `CREATEDB, CREATEROLE and cloudsqlsuperuser` are granted to new users
+  - need to be revoked after creating new users
 
 ## [DNS](https://www.cloudflare.com/learning/dns/what-is-dns/)
 
-- Trailing Dots tell the DNS server that this is a Fully Qualified Domain Name.
+- Trailing Dots tell the DNS server that this is a Fully Qualified Domain Name (FQDN).
   - 例如 `example.com.`
   - 設定 resource record 時需要特別標明為 FQDN, 以免被加上不預期的 root domain
 - 註冊
@@ -96,7 +214,7 @@
 #### SOA
 
 - start of authority
-- 每個檔案都需要 & 只能有一個
+- 每個 zone 都需要 & 只能有一個
 - 描述該 zone
 - 同步 primary & secondary 稱為 zone transfer
   - 先傳 SOA, 用 serial 判斷要不要更新
@@ -156,7 +274,7 @@
 - 例如 sub domain name 共用 root domain name 的 ip
   - sub domain name 用 CNAME 指向 root domain name
   - 主機收到 request 再根據 url 判斷要給哪個網頁
-- 避免 CNAME 指向另外一個 CNAME（浪費效能）
+- 避免 CNAME 指向另外一個 CNAME (浪費效能)
 
 #### MX
 
@@ -179,16 +297,54 @@
     - Domain-based Message Authentication, Reporting & Conformance (DMARC)
   - 還能用來驗證 domain ownership
 
+## Amazon
+
+- bedrock 權限
+  - 文件: https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-permissions.html
+  - [create policy](https://us-east-1.console.aws.amazon.com/iam/home?region=ap-northeast-1#/policies/create)
+    - 給予 Marketplace 的 ViewSubscriptions, Subscribe, Unsubscribe
+    - 給予 Bedrock 的 ListFoundationModels, GetFoundationModelAvailability
+  - [create user group](https://us-east-1.console.aws.amazon.com/iam/home?region=ap-northeast-1#/groups/create)
+    - attach policy
+  - [create user](https://us-east-1.console.aws.amazon.com/iam/home?region=ap-northeast-1#/users/create)
+    - Security credentials -> Enable console access
+
 ## Google
 
-- attach disk 需要 format & mount. Google 不會自動處理.
-  - https://cloud.google.com/compute/docs/disks/add-persistent-disk
+- 比較 gce, gke, cloud run, cloud function
+  - https://cloud.google.com/blog/topics/developers-practitioners/where-should-i-run-my-stuff-choosing-google-cloud-compute-option
+  - https://cloud.google.com/products/calculator?hl=en
+
+### App Engine
+
+- 可以放 web application, 靜態網頁
+- deployer 權限需求: Service Account User, Cloud Build Editor, App Engine Admin, Storage Admin
+- app.yaml
+  - service 代表名稱. 預設值是 default
+    - service defines to which service this app will be deployed. If the service is not defined, the app will be deployed always to the default service
+  - https://cloud.google.com/appengine/docs/standard/reference/app-yaml
+- 跟 bucket 比起來, 優點是能加上 [Identity Aware Proxy](#Identity-Aware-Proxy)
+  - [standard](https://cloud.google.com/appengine/docs/standard/serving-static-files?tab=node.js)
+    - The content in the static files or static directories are unaffected by the scaling settings in your app.yaml file. Requests to static files or static directories are handled by the App Engine infrastructure directly, and do not reach the language runtime of the application.
+  - [flexible](https://cloud.google.com/appengine/docs/flexible/serving-static-files?tab=node.js)
+    - 似乎會用到 language runtime
+- 如何部署 static website
+  - https://cloud.google.com/appengine/docs/standard/hosting-a-static-website
+- tf
+  - `google_compute_region_network_endpoint_group` 指定 app engine service
+  - `google_compute_backend_service` 接 `google_compute_region_network_endpoint_group`
 
 ### Big Query
+
+- Cloud Bigtable, Cloud Storage, Google Drive, Cloud SQL, ...
+
+#### 搜尋
 
 - limit 不影響收費
   - 用多個 cpu 搜尋資料庫
   - 查詢所有資料之後才處理 limit
+- 選擇 column
+- partition table
 - https://cloud.google.com/blog/products/data-analytics/cost-optimization-best-practices-for-bigquery
 
 ### Cloud CDN
@@ -204,6 +360,7 @@
     - [Cache 跨 project 共用](https://cloud.google.com/cdn/docs/overview#eviction)
       - 同地區
   - 不同 query string, header, cookie 拿到不同的結果
+  - 如果 request 缺 cache key, 可以當作該 cache key 為空值
 - Negative caching: 根據 response code, cache 一段時間
 - [Serve stale content](https://cloud.google.com/cdn/docs/serving-stale-content)
   - 避免被故障影響, 減少延遲
@@ -229,6 +386,10 @@
 - [Log](https://cloud.google.com/cdn/docs/logging)
 - response size 小於約 80kb 的話會開始變成掛 CDN 比較貴，因為有 per request 計算的 cache lookup 費用  
   小到 3kb 的話連 APAC hit rate 90% 都還是 CDN 比較貴
+
+### Cloud function
+
+- Firebase function is built on Cloud function
 
 ### Cloud Run
 
@@ -256,127 +417,223 @@
 
 ### Compute Engine
 
+- [Compute Engine default service account](https://cloud.google.com/compute/docs/access/service-accounts#default_service_account)
+  - Attached by default to all VMs
+- attach disk 需要 format & mount. Google 不會自動處理.
+  - https://cloud.google.com/compute/docs/disks/add-persistent-disk
 - `gcloud compute ssh` 連上 vm 跑 user background process
   - 登出前會停掉 background process, 然後才能登出
   - https://unix.stackexchange.com/questions/682793/why-background-process-terminated-after-ssh-session-closed/682794#682794
-- 用網頁連上 vm 跑 user background process
-  - 關閉網頁不會停掉 background process
+- 用網頁連上 vm 跑 user background process ( 使用 `&` )
+  - 關閉網頁 `短時間內` 不會停掉 background process
   - 關機時才會停掉
+- disk
+  - [Increasing the size of a disk doesn't delete or modify disk data](https://cloud.google.com/compute/docs/disks/resize-persistent-disk)
+  - resize disk 之後, 如何調整 file system. (file system 需要知道 disk 變化)
+    - https://cloud.google.com/compute/docs/disks/resize-persistent-disk#resize_partitions
+  - snapshot
+    - rate limit: 1 hr 6 次
+    - 可以不接到 vm
+    - 不佔用 disk io, disk throughput ??
+    - https://cloud.google.com/compute/docs/disks/snapshots
+    - 只會紀錄跟上次 snapshot 有差異的部分 ??
+    - import 時
+      - `projects/{project name}/global/snapshots/{snapshot name}`
+      - 同 project 可以只打 snapshot name
 
 ### Database
 
 - 連線
-  - 先建立一個 control console vm ?
-    - `gcloud compute ssh --zone={zone} --project={project} control-console -- -N -L {port}:{remote-host}:{port}`
-  - [iap](#IAP)
+  - `gcloud --project=${project} compute ssh ${目標機器} --zone=${zone} -- -NL ${localport}:localhost:${目標 port}`
+  - `gcloud compute start-iap-tunnel ${target_instance.name} ${target_port} --project=${project_id} --zone=${target_instance.zone} --local-host-port=localhost:9999`
+
+### Firebase
+
+- Firestore
+  - 就算 collection 名稱不同, security rules 依舊容易打架
 
 ### GKE
 
 1. 按下 Deploy, 並按照表格填寫
 2. 按下 expose, 填寫 dockerfile expose 的 port
 
+- 用 crictl 而非 docker
 - GKE 可以放在 managed instance groups
 - https://cloud.google.com/kubernetes-engine/docs/concepts/cluster-autoscaler#balancing_across_zones
   - cluster autoscaler attempts to keep these managed instance group sizes balanced when `scaling up`
+    - [也許要設定 topologySpreadConstraints ??](https://cloudhero.io/kubernetes-evenly-distribution-of-pods-across-cluster-nodes/)
     - scale down 的時候直接砍 underutilized nodes
       - 也就是 scale down 的時候, `group sizes` 可能`分佈不均`
-- 用 workload 可以快速找到 log explorer
-  - deployment
-    - 掌管 ReplicaSets
-    - rolling update
-    - rollback
-    - version control
-  - stateful set
-    - 會依照固定順序更新
-    - 特性
-      - consistent & unique identiy
-      - persistent storage
-      - stable network identity
-  - daemon set
-    - 1 pod per node
-    - 可以用來
-      - 收集 logs
-      - monitor
-      - manage network traffic across entire cluster
+        - `kubectl get pods -l {key}={value} -o json | jq -r '.items.[].status.conditions.[].message | select( . != null )'` ??
+      - https://github.com/kubernetes-sigs/descheduler 也許有用 ??
+- node 會隨機開在 region 裡面的任何 zone
+- 網址用 [svc record](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/#a-aaaa-records) 才會走內網
+  - `_port-name._port-protocol.my-svc.my-namespace.svc.cluster-domain.example`
+    - `_port-name` 例如 http 或 grpc (For a regular Service 可省略)
+    - `_port-protocol` 例如 tcp 或 udp (For a regular Service 可省略)
+    - `my-svc`
+    - `my-namespace`
+    - `cluster-domain.example` 集群域名後綴. 通常是 cluster.local
 
----
+#### Workload api object
+
+- deployment
+  - 掌管 ReplicaSets
+  - rolling update
+  - rollback
+  - version control
+- stateful set
+  - 會依照固定順序更新
+  - 特性
+    - consistent & unique identiy
+    - persistent storage
+    - stable network identity
+- daemon set
+  - 1 pod per node
+  - 可以用來
+    - 收集 logs
+    - monitor
+    - manage network traffic across entire cluster
+
+#### Workload Identity
+
+- Cluster 開啟 Workload Identity
+- 需要設定權限 roles/iam.workloadIdentityUser
+- [spec.template.spec.serviceAccountName](https://cloud.google.com/run/docs/configuring/services/service-identity#yaml)
+  - 值是 kustomize yaml 裡面的 service account `kind` 的名稱
 
 #### Log
 
+- 用 google console ui 的 workload 可以快速設定 log explorer
 - `labels."compute.googleapis.com/resources_name"` 是 node name (VM name)
 - `resource.lables.pod_name` 是 pod name
 
-### IAP
+#### 雜項
 
-- `gcloud compute start-iap-tunnel ${target_instance.name} ${target_port} --project=${project_id} --local-host-port=localhost:9999 --zone=${target_instance.zone}`
+- node pool 在 clusters 裏面
+- fluentbit-gke 在 kube-system
+- disk 效能 vs machine type
+  - https://cloud.google.com/compute/docs/disks/performance
+
+### Identity
+
+- Application Default Credentials (ADC) 尋找順序: https://cloud.google.com/docs/authentication/application-default-credentials
+- 選擇驗證方式: https://cloud.google.com/docs/authentication#auth-decision-tree
+
+### Identity Aware Proxy (IAP)
+
+- https://cloud.google.com/iap/docs/concepts-overview#how_iap_works
+  - 在 app engine / load balancer 檢查 cookie 中的 jwt
+  - 在 Google 內網呼叫不會經過 LB = 不會經過 IAP. 內網用 firewall
+  - WebSocket 不會再檢查 iap
+- 在 local 無 key 產生 id token
+  - https://cloud.google.com/iap/docs/authentication-howto#curl
+- 在 local 用 service account 產生 jwt
+  - https://cloud.google.com/iap/docs/authentication-howto#signing_the_jwt
+  - aud 是 `目標 url` 含 scheme (https://example.com)
+- 只認 cookie 不管來自哪個網站 ??
 
 ### Load Balancer
 
 - Google 內部服務也用 Global Server Load Balancer 尋找 ip
 - [Choose](https://cloud.google.com/load-balancing/docs/choosing-load-balancer)  
   <img src="https://cloud.google.com/static/load-balancing/images/choose-lb.svg" width=480/>
-- [External TCP/UDP Network Load Balancing](https://cloud.google.com/load-balancing/docs/network/networklb-backend-service)
-  - 不影響 source & destination ip, protocol, port
-  - 不會關掉連線
-    - 無法自行擋住惡意連線
-  - 不會處理 SSL
-  - architecture
-    - backend service
-      - ipv4 (standard, premium), ipv6 (premium)
-      - auto scaling with managed instance groups
-      - distribution control
-        - health check
-        - source ip based traffic steering
-        - session affinity  
-          [connection tracking](https://cloud.google.com/load-balancing/docs/network/networklb-backend-service#tracking-mode)
-        - connection draining
-          - in progress requests are given time to complete when a VM is removed or when an endpoint is removed
-        - failover policy
-      - component
-        - 1 regional external backend service (決定 balancer 怎麼導流量到 backend instance groups)
-        - multiple regional external ip addresses  
-          [multiple regional external forwarding rules](https://cloud.google.com/load-balancing/docs/network/networklb-backend-service#forwarding-rule-protocols)
-          - protocol, ip address, port based
-        - multiple backend instance groups
-      - must create firewall rules that allow your load balancing traffic and health check probes to reach the backend VMs
-    - target pool
-      - legacy
-  - <img src=https://cloud.google.com/static/load-balancing/images/tcp-forwarding-rule.svg width=300>
-- [External HTTP(S) Load Balancing](https://cloud.google.com/load-balancing/docs/https)
-  - header
-    - 保存 Host header
-    - X-Forwarded-For
-      - `X-Forwarded-For: ...,<client-ip>,<load-balancer-ip>`
-  - Global external HTTP(S) load balancer
-    - PREMIUM
-    - An external forwarding rule
-    - Health check
-    - Firewall rules
-    - A target HTTP(S) proxy
-      - Support SSL certificates (https://console.cloud.google.com/net-services/loadbalancing/advanced/sslCertificates/list)
-      - 可能會改 header 大小寫
-      - URL map
-        - Request path, cookies, headers
-    - Support cloud trace
-    - Support custom headers (似乎不能搭配 Cloud CDN)
-  - Regional external HTTP(S) load balancer
-    - STANDARD
-    - A proxy-only subnet is used to send connections from the load balancer to the backends. [ref](https://cloud.google.com/load-balancing/docs/https#proxy-only-subnet)
-      - <img src="https://cloud.google.com/static/load-balancing/images/ilb-l7-components.svg" width=300>
-      - Backend VMs or endpoints of all regional external HTTP(S) load balancers in a region and VPC network receive connections from the proxy-only subnet.
-        - 應該是指所有 VM 只會看到 proxy-only subnet 來的 load balancer connection
-    - Health check
-    - Firewall rules
-      - 1 for health check
-      - 1 for proxy-only subnet
-    - A target HTTP(S) proxy
-    - 如果要用 cloud trace 或 custom headers, 可以用 standard tier 的 Global external HTTP(S) load balancer `(classic)`
-      - 但是 url map 的功能比較少
-  - <img src=https://cloud.google.com/static/load-balancing/images/https-forwarding-rule.svg width=300>
+
+#### [External TCP/UDP Network Load Balancing](https://cloud.google.com/load-balancing/docs/network/networklb-backend-service)
+
+- 不影響 source & destination ip, protocol, port
+- 不會關掉連線
+  - 無法自行擋住惡意連線
+- 不會處理 SSL
+- architecture
+  - backend service
+    - ipv4 (standard, premium), ipv6 (premium)
+    - auto scaling with managed instance groups
+    - distribution control
+      - health check
+      - source ip based traffic steering
+      - session affinity  
+        [connection tracking](https://cloud.google.com/load-balancing/docs/network/networklb-backend-service#tracking-mode)
+      - connection draining
+        - in progress requests are given time to complete when a VM is removed or when an endpoint is removed
+      - failover policy
+    - component
+      - 1 regional external backend service (決定 balancer 怎麼導流量到 backend instance groups)
+      - multiple regional external ip addresses  
+        [multiple regional external forwarding rules](https://cloud.google.com/load-balancing/docs/network/networklb-backend-service#forwarding-rule-protocols)
+        - protocol, ip address, port based
+      - multiple backend instance groups
+    - must create firewall rules that allow your load balancing traffic and health check probes to reach the backend VMs
+  - target pool
+    - legacy
+- <img src=https://cloud.google.com/static/load-balancing/images/tcp-forwarding-rule.svg width=300>
+
+#### [External HTTP(S) Load Balancing](https://cloud.google.com/load-balancing/docs/https)
+
+- header
+  - 保存 Host header
+  - X-Forwarded-For
+    - `X-Forwarded-For: ...,{client-ip},{load-balancer-ip}`
+- Global external HTTP(S) load balancer
+  - PREMIUM
+  - Health check
+  - Firewall rules
+  - forwarding rule, target proxy, url map, backend service 的關係: https://cloud.google.com/static/load-balancing/images/internal-https-forwarding-rule.svg
+  - An external forwarding rule
+  - A target HTTP(S) proxy
+    - Support SSL certificates
+      - 藏在 [load balancing components view](https://console.cloud.google.com/net-services/loadbalancing/advanced/sslCertificates/list)
+    - 可能會改 header 大小寫
+    - URL map
+      - Request path, cookies, headers
+  - Support cloud trace
+  - Support custom headers (似乎不能搭配 Cloud CDN)
+- Regional external HTTP(S) load balancer
+  - STANDARD
+  - A proxy-only subnet is used to send connections from the load balancer to the backends. [ref](https://cloud.google.com/load-balancing/docs/https#proxy-only-subnet)
+    - <img src="https://cloud.google.com/static/load-balancing/images/ilb-l7-components.svg" width=300>
+    - Backend VMs or endpoints of all regional external HTTP(S) load balancers in a region and VPC network receive connections from the proxy-only subnet.
+      - 應該是指所有 VM 只會看到 proxy-only subnet 來的 load balancer connection
+  - Health check
+  - Firewall rules
+    - 1 for health check
+    - 1 for proxy-only subnet
+  - A target HTTP(S) proxy
+  - 如果要用 cloud trace 或 custom headers, 可以用 standard tier 的 Global external HTTP(S) load balancer `(classic)`
+    - 但是 url map 的功能比較少
+- <img src=https://cloud.google.com/static/load-balancing/images/https-forwarding-rule.svg width=300>
+
+##### SSL Certificate
+
+- 如果在 DNS 好之前就建立 SSL Certificate, Certificate 可能卡在 FAILED_NOT_VISIBLE
+
+##### URL Map
+
+- 一個 domain 指向一個 ip 指向一個 LB
+- 一個 LB 可以有多個 domain
+- 一個 LB 可以有多個 IP
+  - 每個 ip 對應一個 google_compute_global_forwarding_rule
+- 一個 LB 有一個 url map
+- url map 可以送到 cdn, cdn 送到其他 LB ??
+- url map 有 domain 時才會嘗試 health check
+  - 如果暫時清空 domain. 下次填入 domain 時要等一段時間才會 health check
+- url map 接 backend-service
+  - backend-service 接 serverless-neg (app engine, cloud function)
+  - backend-service 接 neg
 
 #### Distribution
 
 - 以 backend instance group 或 network endpoint group 為單位
+  - NEG: 要在 kubernetes metadata annotation 設定  
+    https://cloud.google.com/kubernetes-engine/docs/how-to/standalone-neg#create_a_service
+    - Cluster 開啟 HTTP Load Balancing
+    - NEG 建立時, 只有處理當下有 node 的 zone
+      - 檢查 `gcloud compute network-endpoint-groups list`
+    - schedule 到其他 zone 時, 會自動建立 NEG
+    - terraform 建立 backend service 時, 需要包含 NEG 所有 region
+    - 設定完 NEG 還要設定 load balancer
+    - 修改 port 要重建 NEG
+  - [GKE versions 1.18.18-gke.1200 可能會先建立所有 NEG ??](https://cloud.google.com/kubernetes-engine/docs/how-to/standalone-neg)
 - [步驟](https://cloud.google.com/load-balancing/docs/https#request-distribution)
   1. Maglev
   2. 1st Google Front End
@@ -402,35 +659,120 @@
 - 如果用量太少, 會集中在一個 region
 - 如果用量太多, 某些 group 會超過上限
 
+#### 修改
+
+- 如果修改 LB 連到的後端, 需要小心原本的連線可能沒斷
+
+### Metrics
+
+- 可以設定掉資料的行為: https://cloud.google.com/monitoring/alerts/concepts-indepth#partial-metric-data
+- cpu usage: 目前用量
+- cpu utilization: 目前用量 / 所有核心總效能
+- Google Managed Prometheus (GMP)
+  - 可以自動在 metrics 加 label
+  - https://console.cloud.google.com/monitoring/metrics-explorer 可以查看有哪些 prometheus metrics
+- 文件
+  - Legacy
+    - agent.googleapis.com
+    - https://cloud.google.com/monitoring/api/metrics_agent
+  - GKE
+    - https://cloud.google.com/monitoring/api/metrics_kubernetes
+  - LB
+    - https://cloud.google.com/monitoring/api/metrics_gcp
+  - Redis
+    - https://cloud.google.com/memorystore/docs/redis/supported-monitoring-metrics
+  - SQL
+    - https://cloud.google.com/sql/docs/mysql/admin-api/metrics
+  - Logs Based Metrics
+    - https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring/sli-metrics/logs-based-metrics#lbm-defn
+    - e.g. https://gitlab.rayark.com/service/deploy/-/blob/9aab76691be3ceb0dd240e8c42f056634a1c41a9/rayark-monitoring/monitoring/alerts/lb-http/log-based-metrics.tf#L22
+  - Custom
+    - https://cloud.google.com/monitoring/custom-metrics
+
+### Permission
+
+- google_project_iam_binding 是 Authoritative for a given role.
+  也就是同一個 role 只能有一個 binding, 不然會覆蓋
+
+### Registry (Docker image registry)
+
+- 實際存放在 Google cloud storage (至少 container registry 是. artifact registry 不確定)
+
 ### Signed URL
 
 - 有存取限制 & 時間限制的 URL
 - 例如: 臨時上傳 / 下載檔案
 
-### 費用相關
+### Virtual Private Cloud
 
+- > VPC peering however is way too broad, all ip’s across the both the VPC’s are visible to each other ??
+  - > In this instance, since the intention is to selectively expose a service, a better mechanism is Private Service Connect
+  - https://bijukunjummen.medium.com/connecting-gcp-vpc-networks-using-private-service-connect-4164be11c6a
+
+### 故障
+
+- hardware or software issue on the physical machine hosting your VM ??
+  - https://cloud.google.com/compute/docs/instances/host-maintenance-overview
+- 從 node name 找 ip
+  - 有些 log 同時有 node name 跟 ip
+    - `Successfully retrieved node IP`
+    - `Detected node IP`
 - CDN 判斷 ip 所在地區跟 cloud armor, load balancer 的可能不一致
   - 不同步可能持續數周
   - subdivision 為空的似乎有問題
-- `networking service` 只有 CDN
-- `compute engine service` 含有 egress, load balancer
-  - 要查網路流量不能只看 networking
-  - load balancer 收費有上限
+  - 用 https://bgp.he.net 驗證 ip 的電信商
+- 需要自行訂閱通知
+  - https://console.cloud.google.com/user-preferences/communication
+  - 否則可能漏掉某些升級, 棄用事件
 
-## Grafana
+### 費用相關
 
-- `%` = regex 的 `*`
+- 拆除時, 以下可以檢查 project 是否還有東西被用到
+  - enabled apis & services
+  - [asset inventory](https://console.cloud.google.com/iam-admin/asset-inventory/dashboard)
+- 查詢用量
+  - 到 billing/reports 設定 filter
+  - `networking service` 只有 CDN
+  - `compute engine service` 含有 egress, load balancer
+    - 要查網路流量不能只看 networking
+    - load balancer 收費有上限 ??
+  - 網路流量
+    - Network Intelligence
+    - Metrics explorer > `compute.googleapis.com/instance/network/sent_bytes_count`
+    - Logs Explorer
+- 偵測 Quota 用量 https://cloud.google.com/monitoring/alerts/using-quota-metrics#mql-rate-multiple-limits
 
-### query
+## JQ
 
-- 例如
-  - sum by (`label key`)(rate(`label name`{`filter key`=`value`,project_id="$project"}[1m]))
-  - https://prometheus.io/docs/prometheus/latest/querying/examples
+- https://hackmd.io/@il-suse/BJ_RoR8u_
+- https://jqlang.github.io/jq/manual
+  ```shell
+  kubectl get pods -o json | jq '.items | first | keys[]'
+  ```
+  ```shell
+  kubectl get pods -o json | jq '.items.[]'
+  ```
 
 ## Kubernetes
 
 - https://docs.google.com/presentation/d/10mm4ugzDvG93e4xEe8KsenIEnN9VnDFcpH19zo93Ghw/edit#slide=id.p
 - https://kubernetes.io/docs/tutorials/
+
+架構可以參考 Argo CD
+
+```mermaid
+flowchart TD
+    C[Cluster] --> S[Secret]
+    C --> HPA[Horizontal Pod Autoscaler]
+    C --> SVC[Service]
+    C --> SA[Service Account]
+    C --> D[Deployment]
+    SVC --> EP[Endpoints]
+    SVC --> ES[Endpoint Slice]
+    SVC --> SNEG[Service Network Endpoint Group]
+    D --> RS[Replica Set]
+    RS --> P[Pod]
+```
 
 ### namespace
 
@@ -462,7 +804,7 @@
     - consistent & highly available key value store
     - Kubernetes' backing store for all cluster data
   - 有 kube-apiserver 的部份可以 scale horizontally
-    - 大概 control plane 其他部份都支援 horizontally scaling ?
+    - 大概 control plane 其他部份都支援 horizontally scaling ??
   - 其他
 - node
   - vm 或實體電腦
@@ -475,11 +817,12 @@
   - 有 kube-proxy 讓 pod 能連網
 - pod
   - [可以被其他的 pod 或 cluster 內的其他服務看到](https://kubernetes.io/docs/tutorials/kubernetes-basics/deploy-app/deploy-interactive/)
+  - 名稱是 `{replica set 名稱}-{亂碼後綴}`
   - STDOUT 會變成 container 的 log
 
-### kustomize
+### Objects
 
-- https://kubernetes.io/docs/concepts/overview/working-with-objects/kubernetes-objects
+- https://kubernetes.io/docs/concepts/overview/working-with-objects/
   - apiVersion
     - Which version of the Kubernetes API you're using to create this object
   - kind
@@ -489,48 +832,168 @@
   - spec
     - What state you desire for the object
     - https://kubernetes.io/docs/reference/kubernetes-api/
-- 用 patch 而不用 replace 只會修改使用者動到的部份. 例如多人在 local 同時修改 & patch
-  - 變複雜
-  - 或許 replace 之前先 `kubectl diff -Rf {directory}`
-  - 不能刪除, 不能修改 ?
-- apply 前都先 diff 看看, 避免不預期的狀況. 例如 image tag 是舊的
-- hpa 會定期覆蓋實際的 replica set 數量
-  - HorizontalPodAutoscaler
-  - kubectl delete hpa {name} ?
+- Kind
+  - Deployment
+    - 簡介 https://kubernetes.io/docs/concepts/workloads/controllers/deployment
+    - 可以設定的東西 https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/deployment-v1/
+  - [HorizontalPodAutoscaler](#kubectl)
+
+#### kustomize
+
+- [autocomplete kustomize](https://github.com/kubernetes-sigs/kustomize/blob/be8d60fb9f2fff23b2e2367c0acd393997fa9d47/cmd/config/internal/generateddocs/commands/docs.go#L41)
+- port = pod port
+- targetport = container port
+- maxUnavailable
+- secret 需要另外接到 container
+  - [產生](https://kubernetes.io/docs/tasks/configmap-secret/managing-secret-using-kustomize)
+  - 掛上 secret / configmap
+    - [file 用 volumes + containers.volumeMounts](https://kubernetes.io/docs/concepts/configuration/secret)
+    - env 用 envFrom
+
+##### patches
+
+- 方便設定不同環境
+  - replace 之前先 `kubectl diff -Rf {directory}` ??
+- 同一層不保證順序  
+  要保證順序要分開, 用 resource 組合
+  https://github.com/kubernetes-sigs/kustomize/issues/727
+- inline patch
+  - https://github.com/kubernetes-sigs/kustomize/blob/master/examples/inlinePatch.md
+- patchesStrategicMerge 用法 (新版放棄了 https://github.com/metallb/metallb/issues/1985)
+  - https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/#customizing
+- Deployment 的 spec.template.spec.containers 的 element 需要 name
+
+#### Helm
+
+- `helm get values {release-name}` 取得目前在用的設定
+- `helm install redis-cluster ot-helm/redis-cluster -f values.yaml`
+
+### probe
+
+- https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#types-of-probe
+- startupProbe: 是否該重啟, 是否啟動其他種類的 probe
+- livenessProbe: 是否該重啟
+- readinessProbe: 是否能服務
+- 上述沒有設定時, 會檢查 the status of the container’s PID 1 process
+  - https://kamsjec.medium.com/liveness-and-readiness-probes-91919f24e305
 
 ### kubectl
 
-- 顯示 namespace 下面的所有東西
-  ```shell
-  kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 kubectl get --show-kind --ignore-not-found
-  # 如果要過濾部份 `| grep -v -e pod/ -e replicaset/ -e deployment/`
-  ```
-  - kubectl get all 可能只會顯示 pod, service, deployment, replicaset
+- apply 前都先 diff 看看, 避免不預期的狀況. 例如 image tag 是舊的
+- pdb
+  - Pod Disruption Budget
+  - `kubectl get pdb --all-namespaces`
+  - The HPA scales the number of pods in your deployment,  
+    while a PDB ensures that node operations won't bring your service down by removing too many pod instances at the same time
+- hpa
+  - Horizontal Pod Autoscaler
+    - https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/horizontal-pod-autoscaler-v2
+    - https://kubernetes.io/docs/tasks/run-application/horizontal-pod-autoscale-walkthrough
+  - 會定期覆蓋實際的 replica set 數量
+  - `kubectl delete hpa {name}`
+    - 然後 `kubectl scale deployment {名稱} --replicas {數量}`
+  - 如果 scale 到 0 就會停止 hpa
+- [exec with root permission](https://stackoverflow.com/a/72633677/24143228)
+
+<details><summary>指令</summary>
+
+```shell
+# 只顯示 pod, service, deployment, replicaset
+kubectl get all
+# 顯示 namespace 下面的所有東西
+# 如果要過濾部份 `| grep -v -e pod/ -e deployment/ -e replicaset/`
+kubectl api-resources --verbs=list --namespaced -o name | xargs -n 1 kubectl get --show-kind --ignore-not-found
+
+kubectl set image deployment/{deployment-name} {container-name}={image}
+```
+
+</details>
+
+### 切換 context
+
+- `kubectl config ...`
+  - https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
+- `gcloud container clusters get-credentials {CLUSTER_NAME} --project={PROJECT_ID} --region={COMPUTE_REGION}`
+  - https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl
+  - 如果記錄到過時的 cluster
+    - `kubectl config view` / `kubectl config current-context` 找到目標
+    - kubectl config delete-cluster `{cluster}` 移除目標
+    - 重跑一次 gcloud container clusters get-credentials ...
+
+#### Debug
+
+- 連到 pod 裡面: `kubectl exec -it {pod name} -- bash`
+  - 如果一直 crash, 讓 pod 執行 nop 再 exec https://stackoverflow.com/questions/65093966/how-can-i-keep-a-pod-from-crashing-so-that-i-can-debug-it
+- port forward 到 local: `kubectl port-forward {pod name} port:port`
+- 定期追蹤 cpu / memory 用量: `watch -n 5 "echo "$(date +%F-%T) $(kubectl top pod "$POD_NAME" --no-headers)" >> result.text;"`
+- init container 沒有 metrics 也看不到 `kubectl top`
+
+#### 更新時
+
+- 用 log 判斷有沒有 background job
+- 判斷有沒有重開
 
 #### 砍 node 步驟
 
 - `kubectl cordon {node name}`
   - 禁止在 node 新增 pod (unschedulable)
 - `kubectl delete pod {pod name}`
-- `kubectl get pods -o wide`
+- `watch kubectl get pods -o wide`
   - 確認至少一個 pod 搬到其他 node
+  - watch 每秒執行指令
 - `kubectl drain {node name}`
+  - 如果有設定 pdb max unavailable = 0: `kubectl rollout restart deployment {name}`
   - mark node as unschedulable
   - 砍 mirror pods & DaemonSet pods 以外的 pods
 - `kubectl describe nodes`
   - 確認 pods 搬到其他 node
 - `kubectl delete node {node name}`
 
+#### 砍服務 (on Google)
+
+- [ ] kubectl delete -f yaml
+  - Deployment
+  - Service
+  - Namespace
+- [ ] delete service account
+- [ ] delete Cluster
+- [ ] url map (Google)
+  - backend service
+  - health check
+  - named port
+    - load balancer 會用這個 metadata
+    - node port 也用 ??
+    - https://cloud.google.com/sdk/gcloud/reference/compute/instance-groups/set-named-ports
+- [ ] DNS
+- [ ] SSL Certificate
+
+### GitOps
+
+#### Argo CD
+
+- diff 時 ignore & sync 時 ignore
+  - https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/#respect-ignore-difference-configs
+  - 預設只有 diff 時 ignore
+
+#### Flux
+
+### 分佈
+
+- node affinity: 吸引 pod
+- node taint: 排斥 pod
+- pod toleration: 抵銷 taint
+- topologySpreadConstraints
+
 ### 其他功能
 
 - proxy
   - 可以用來連到 cluster 內部
 - service
-
   - 管理如何連到 pods
   - type
     - cluster ip
       - 只有 cluster 內部可以連到
+      - [headless service 沒有 cluster ip](https://godleon.github.io/blog/Kubernetes/k8s-Service-Overview)
     - node port
       - 可以從外部連
       - `{node ip}:{node port}`
@@ -544,23 +1007,18 @@
       - 可以動態修改
       - 例如: 標示環境, 版本, 歸類
   - [會產生 DNS record](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/)
-
     - 靠 kubelet 修改 pod 的 `/etc/resolv.conf`
       - search `{namespace}.svc.{cluster domain name}` `svc.{cluster domain name}` `{cluster domain name}`
     - pod 預設可以用 domain name 連同一個 namespace & default namespace
     - 跨 namespace 可能需要 fully qualified domain name
-
       - `test` namespace 的 pod 要連 `prod` namespace `data` service 底下的資源 (都在 `cluster.local` 這組 cluster)
-
-        | client 呼叫的 domain name    | 是否能連到 |
+      - | client 呼叫的 domain name    | 是否能連到 |
         | ---------------------------- | ---------- |
         | data                         | :x:        |
         | data.prod                    | :o:        |
         | data.prod.svc.cluster.local. | :o:        |
-
     - namespace 可能蓋掉 public top level domains
     - services & pods 有對應的 DNS records
-
 - pods can communicate with all other pods on any other node without NAT
   - containers within a Pod must coordinate port usage
 - deployment
@@ -572,8 +1030,6 @@
 - kubernetes api
   - control plane 與 nodes 之間溝通
   - kubectl 也是使用 kubernetes api
-    - `kubectl exec -it {pod name} -- bash` 可以連到 pod 裡面
-    - `kubectl port-forward {pod name} port:port` port forward 到 local
 - 設定環境變數
   - Dockerfile
   - kubernetes.yml
@@ -619,6 +1075,9 @@
     - runtime 實作者決定
   - cpu & memory
     - 沒填寫 request 會用 limit 值
+    - 如果 node 到達記憶體上限, 會砍超過 request 用量的 pod
+      - [If a container exceeds its memory request and the node that it runs on becomes short of memory overall, it is likely that the Pod the container belongs to will be evicted.](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers)
+      - [hard-eviction-thresholds](https://kubernetes.io/docs/concepts/scheduling-eviction/node-pressure-eviction/#hard-eviction-thresholds)
     - cpu 以一個 core 為單位
       - 可以填小數點
       - 小於 1.0 建議以 m 為單位 (milliCPU)
@@ -662,16 +1121,11 @@
         - evict pods that don't specifically tolerate the taint
   - pod request & limit = pod 內部 container request & limit 總和
   - 可能超過 total allocatable, 搶 reserved
-
-### 切換 context
-
-- `kubectl config ...`
-  - https://kubernetes.io/docs/tasks/access-application-cluster/configure-access-multiple-clusters/
-- `gcloud container clusters get-credentials {CLUSTER_NAME} --project={PROJECT_ID} --region={COMPUTE_REGION}`
-  - https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl
+- [Quality of Service ??](https://kubernetes.io/docs/tasks/configure-pod-container/quality-service-pod/)
 
 ## Metrics, Monitor
 
+- [convention](https://opentelemetry.io/docs/specs/semconv/general/metrics)
 - [metrics guide](https://www.digitalocean.com/community/tutorials/an-introduction-to-metrics-monitoring-and-alerting)
   - target
     - host: cpu, disk, ...
@@ -689,7 +1143,7 @@
     - maintain historical data（簡化舊資料或丟進 long-term storage）
     - correlate factors from different sources（beware clock skew）
     - easy to adjust metrics
-      - remove decommissioned machines without destroying collected data ?
+      - remove decommissioned machines without destroying collected data ??
     - alert
       - fine-tune alerting parameters
       - notify with existing applications（用現成的軟體簡化）
@@ -733,7 +1187,15 @@
 - 通常放在 `/var/log`
 - mongo 可能放在 `/data`
 
-### Prometheus
+### Grafana
+
+- google billing `%` = regex 的 `*` ??
+- `Query inspector` 可以確認 metricType 是否正確
+- legend
+  - value 選擇 avg: 可以顯示某段時間的平均值 ??
+  - min step 如果設定 1d 就是累計一天顯示一筆 ??
+
+#### Prometheus
 
 - run Prometheus scrapper using docker
   - run docker https://prometheus.io/docs/prometheus/latest/installation/#volumes-bind-mount
@@ -742,12 +1204,28 @@
   - https://prometheus.io/docs/concepts/metric_types/#histogram
   - https://github.com/prometheus/client_golang/blob/v1.16.0/prometheus/registry.go#L840
   - 可以用 `kubectl port-forward` 到 local, 然後 curl `localhost:9200/metrics` 確認 metrics
+    - 常見 port 9200, 9121 ??
+
+#### PromQL
+
+- 例如
+  - sum by (`label key`)(rate(`label name`{`filter key`=`value`,project_id="$project"}[1m]))
+    - counter, distribution 用 rate
+    - gauge 用 delta
+  - https://prometheus.io/docs/prometheus/latest/querying/examples
 
 ## Mongo
 
 ### Cloud Manager
 
+#### 做完任何操作都要 `deploy` !!!
+
+#### 登入
+
 - mongocli auth login
+  - 如果 `mongocli iam projects list --orgId=xxx` 是空的
+    - `mongocli config set service cloud-manager`
+  - `mongocli auth login --cm` https://www.mongodb.com/docs/mongocli/v1.24/command/mongocli-auth-login/
 - mongocli config set 設定 api key
   - mongocli iam projects list 檢查有權限看哪些專案
 
@@ -761,10 +1239,141 @@
      會卡在 Error: you are already authenticated with an API key
   1. 要先去 ~/.config/mongocli/config.toml 搶救 api key
      - https://www.mongodb.com/docs/mongocli/stable/configure/configuration-file/#configuration-file-location
-  2. 然後 mongocli auth logout（會清空 config）
+  2. 然後 mongocli auth logout (會清空 config)
   3. 填回 api key
 
+#### Metrics / Logs
+
+- Logs 可以看 `Slow query`
+- Query Executor, Document Metrics: 搜尋用量, 回傳量
+
+#### Replicaset
+
+- `mongocli cloud-manager clusters apply --file {filename}`
+
+#### Misc
+
+- 想要看 DB 裡面的資料
+  - 在 secondary 下指令: `rs.setReadPref("secondary")`
+  - deployment/processes 點 replicaset 的 data
+- replication lag
+  - 上次紀錄的 secondary & primary 差距
+- resync 會先複製一份資料. 然後用 oplog 補上複製時 primary 新增的操作
+  - oplog size 需求量要看 disk usage
+- 升級版本
+  1. 在網頁 deployment/topology 進入 modify
+  2. 選擇新的 mongo version
+  3. Save
+  4. deploy
+
+### Command
+
+- `mongosh "mongodb://{user}:{password}@{host}/{db}" --authenticationDatabase={auth db}`
+  - 額外參數: readPreference=secondary
+- `mongosh --eval="{js scripts}"` 或 `mongosh {js script file}`
+- `mongodump {mongo connection string} -d={database name} --gzip --archive={gzip file}`
+- `mongorestore --gzip --archive={gzip file} --nsInclude "{src db name}.{src col name}" --nsFrom "{src db name}.{src col name}" --nsTo "{dst db name}.{dst col name}" --uri="{connection string}"`
+  - db name & col name wildcard: `*`
+  - --nsFrom 要搭配 --nsTo 與 --nsInclude (mongodb 6.0.14)
+
+### Index
+
+- It is recommended that you limit the number of parameters passed to the $in operator to tens of values. Using hundreds of parameters or more can negatively impact query performance
+  - https://www.mongodb.com/docs/manual/reference/operator/query/in/
+
+### Memory
+
+#### WiredTiger
+
+- 預設 cache 大小: 約記憶體一半
+  - https://www.mongodb.com/docs/manual/core/wiredtiger/#memory-use
+  - https://www.percona.com/blog/tuning-mongodb-for-bulk-loads
+    - By the way, you might be wondering why the default WiredTiger cache value is only 50% of available RAM, instead of something like 80-90%. The reason is MongoDB takes advantage of the operating system buffering.
+- cache 記憶體用量盡量維持在設定值的 80% 以下
+  - https://source.wiredtiger.com/develop/tune_cache.html
+  - 超過 80% 會開始定期 evict
+  - 超過 95% 會主動 evict. 影響效能
+- https://www.mongodb.com/docs/manual/reference/database-profiler
+  - bytesRead
+    - 代表從 disk 讀到 cache
+    - cache miss 時, 一次讀 1 page
+    - 建立或更新 index
+  - bytesWritten
+    - 代表從 cache 寫到 disk
+    - 變動先寫到 in-memory cache (不算在 bytesWritten)
+    - eviction 或 checkpoint operation 再寫回 disk
+    - 一次寫 1 page
+
+#### filesystem cache
+
+### OPlog
+
+- 只有 replica set 會寫 oplog
+  - single mongo 也可以進入 replica set 模式
+- 預設容量
+  - https://www.mongodb.com/docs/manual/core/replica-set-oplog/#oplog-size
+  - retry writes 會大幅增加 oplog
+- 想要看 oplog
+  - `local` db 的 `oplog.rs` collection
+  - https://www.mongodb.com/docs/atlas/reference/atlas-oplog/#add-a-user-with-oplog-access
+  - 查看大小 `rs.printReplicationInfo()`
+  - 設定大小 `db.adminCommand({replSetResizeOplog: 1, size: {oplog size in MB}})`
+    - 單位換算要用 1024
+    - https://www.mongodb.com/docs/manual/core/replica-set-oplog/#oplog-size
+- 設定
+  - https://www.mongodb.com/docs/manual/tutorial/change-oplog-size/#c.-change-the-oplog-size-of-the-replica-set-member
+  - ```js
+    db.adminCommand({ replSetResizeOplog: 1, size: Double(16000) });
+    ```
+- 根據 oplog 復原資料庫. 復原到指定 timestamp
+  - 就算顯示 `0 document(s) restored successfully. 0 document(s) failed to restore`, 可能其實是成功了 ??
+  - `mongodump -d local -c oplog.rs -o {資料夾} -q='{ "ts": { "$gt":{"$timestamp":{"t":{timestamp 時間},"i":{ordinal 如 1}}},"$lt": {"$timestamp": {"t": {timestamp 時間}, "i": 0}} }}'`
+  - `mongorestore --uri {mongo connection uri} --oplogReplay {directory 資料夾}`
+    - 可以重跑 oplog replay
+    - mongo connection uri 不要標 db name
+    - oplog.rs.bson 要放在 `directory 資料夾` 的第一層. 檔名要改成 oplog.bson
+    - oplogFile 參數要調整用法 ??
+    - replica set 不能還原到單台
+      - 不會自動套用 `recoveryTimestamp` ~ `mongorestore 要還原的 oplog` 中間的 oplog
+      - 也許可以試試看 mongodump 從 recoveryTimestamp 開始 ??
+- mongo 檢查 TTL 並刪除過期的 oplog, op 欄位會是 "d"
+
+### Replica Set
+
+- rs.config()
+  - rs.initiate() 初次設定. 參數另外查
+  - rs.reconfig() 重新覆蓋. 參數另外查
+- rs.status()
+  - 可以看各個 member 是 primary 還是 secondary
+  - 可以看 secondary 的 optime 是否接近 primary
+    - 不接近可能是 secondary 跟不上 primary
+- rs.stepDown()
+  - primary switch 會等 secondary 抓到最新資料 https://www.mongodb.com/docs/manual/reference/command/replSetStepDown/#availability-of-eligible-secondaries
+- 如果 replica set 換成單台:
+  - 用 reconfig 的方式處理
+  - 重新 initiate 有遇到不明問題: `replicationProcess->getConsistencyMarkers()->getOplogTruncateAfterPoint(opCtx).isNull()`
+    - [先不要用 --replSet, 處理完設定, 再用 --replSet](https://www.mongodb.com/docs/manual/tutorial/restore-replica-set-from-backup)
+      - [刪掉 local.system.replset](https://serverfault.com/questions/424465/how-to-reset-mongodb-replica-set-settings)
+      - 沒加上 --replSet
+        - Document(s) exist in 'system.replset', but started without --replSet. Database contents may appear inconsistent with the writes that were visible when this node was running as part of a replica set. Restart with --replSet unless you are doing maintenance and no other clients are connected. The TTL collection monitor will not start because of this. For more info see http://dochub.mongodb.org/core/ttlcollections
+
+## ssh
+
+- SSH with a command will NOT start a login shell
+  - Thus bash_profile is not sourced
+  - https://unix.stackexchange.com/questions/332531/why-does-remote-bash-source-bash-profile-instead-of-bashrc
+
+## Tableau
+
+- 關閉 VM 似乎就無法操作 ??
+  - 也不能回收 license 使用次數 ??
+
 ## Terraform
+
+- `.terraform` 也可能有機密資料, 不要進 version control (例如 git)
+- 只想要用到部份 remote git  
+  可以在 subdirectory 前加上 `//`  
+  https://github.com/hashicorp/go-getter#subdirectories
 
 ### type
 
@@ -776,7 +1385,7 @@
     ...content...
     EOT
     ```
-    - EOT 可以換成任意字（EOT = end of text）
+    - EOT 可以換成任意字 (EOT = end of text)
     - `<<` 不會 trim 每一行的 leading space
     - `<<-` 會 trim 每一行的 leading space
       - 根據所有行數中最短的 leading space, trim 每一行
@@ -834,10 +1443,16 @@
 - auto complete
   - `terraform -install-autocomplete`
 - [terraform fmt](https://marketplace.visualstudio.com/items?itemName=HashiCorp.terraform#formatting)
-- `terraform apply -target {component}` 可以優先處理某個 component
+- `terraform state rm {component}` 放棄讓 terraform 管理某個 infrastructure
+- `terraform import {component 用 . 連接} "{其他識別 infrastructure 的參數 ...}"` 接管已經存在的 infrastructure
+  - 有可能是之前手動產生的
+  - 有可能是其他 terraform module 產生的
+  - `""` 內可能裝多個參數
+- `terraform apply -target {component}` 可以只處理某個 component
   - apply 完成, 不代表 instance startup-script 也完成
   - 有時候要多次 apply 才會全部完成
-    - 也許是順序問題 ?
+    - 更新 output
+    - 也許是順序問題 ??
 
 ### [keep track of real infrastructure in a state file](https://developer.hashicorp.com/terraform/tutorials/gcp-get-started/infrastructure-as-code#track-your-infrastructure)
 
@@ -851,8 +1466,6 @@
   - 分開設定權限控管
   - 避免直接解析 state, 減少 terraform state 格式變動造成困擾
 - [different version of cli might update state file (corruption)](https://developer.hashicorp.com/terraform/tutorials/cloud/cloud-migrate)
-
-### `.terraform` 也可能有機密資料, 不要進 version control (例如 git)
 
 ### [分開設定機密資料的方法](https://developer.hashicorp.com/terraform/language/settings/backends/configuration#partial-configuration)
 
@@ -968,10 +1581,13 @@ data "google_storage_bucket" "{name}" {...}
       - https://developer.hashicorp.com/terraform/language/providers/requirements#in-house-providers
 - [precondition & postcondition](https://developer.hashicorp.com/terraform/language/expressions/custom-conditions)
 - `&&` & `||` 兩側都一定會跑: [no short-circuit](https://developer.hashicorp.com/terraform/language/expressions/operators#logical-operators)
+- [dynamic blocks](https://developer.hashicorp.com/terraform/language/expressions/dynamic-blocks)
+
+#### Functions
+
 - [functions](https://developer.hashicorp.com/terraform/language/functions)
   - `min([55, 2453, 2]...)` ... 拆開 list & tuple
   - [impure function 被實際呼叫的時機](https://developer.hashicorp.com/terraform/language/expressions/function-calls#when-terraform-calls-functions)
-- [dynamic blocks](https://developer.hashicorp.com/terraform/language/expressions/dynamic-blocks)
 
 ### Terraform for expression
 
@@ -1032,6 +1648,16 @@ data "google_storage_bucket" "{name}" {...}
 - 如果用 become 切換到 unprivileged user, 可能需要在目標機器安裝 acl
   - [Install POSIX.1e filesystem acl](https://docs.ansible.com/archive/ansible/2.3/become.html)
 
+### ssh
+
+- 可以設定在 ~/.ansible.cfg
+  - https://docs.ansible.com/ansible/latest/reference_appendices/config.html
+  - ```cfg
+      [defaults]
+      private_key_file = ~/.ssh/google_compute_engine
+    ```
+  - Are you sure you want to continue connecting (yes/no/[fingerprint])? 要選 yes
+
 ## Misc
 
 - Gnuplot 畫圖
@@ -1045,11 +1671,3 @@ data "google_storage_bucket" "{name}" {...}
   - disk
   - network
 - app store & google play 可以去掉下載消耗的 CDN 費用
-
-### 管理
-
-- DB 需要 persistent disk, 如果用 k8s 需要特別處理
-- `kubectl` 操作 k8s
-- `kustomize`, `terraform` 管理 k8s/vm 設定
-  - [autocomplete kustomize](https://github.com/kubernetes-sigs/kustomize/blob/be8d60fb9f2fff23b2e2367c0acd393997fa9d47/cmd/config/internal/generateddocs/commands/docs.go#L41)
-- `mongo cloud manager` 管理 mongo 設定
