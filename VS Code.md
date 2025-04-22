@@ -1,3 +1,4 @@
 - https://marketplace.visualstudio.com/items?itemName=natqe.reload
 - https://marketplace.visualstudio.com/items?itemName=eamodio.gitlens
 - ShellCheck
+- devcontainer: 開發環境容器化

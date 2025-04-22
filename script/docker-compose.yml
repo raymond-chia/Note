@@ -1,0 +1,30 @@
+# https://medium.com/workleap/the-only-local-mongodb-replica-set-with-docker-compose-guide-youll-ever-need-2f0b74dd8384
+
+services:
+  mongo-replicaset:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    command: --replSet mongo --setParameter enableTestCommands=1
+    container_name: mongo6.0
+    healthcheck:
+      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:\"mongo\",members:[{_id:0,host:\"mongo6.0:27017\"}]}) }" | mongosh
+      interval: 5s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+  mongo:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    container_name: mongo6.0
+  redis:
+    image: redis:7.2
+    ports:
+      - "6379:6379"
+    container_name: redis7.2
+  test:
+    image: ""
+    command: bash
+    stdin_open: true
+    tty: true

@@ -97,15 +97,6 @@
   - Once they have set their new password, the user should then login through the usual mechanism. Don't automatically log the user in, as this introduces additional complexity to the authentication and session handling code, and increases the likelihood of introducing vulnerabilities.
   - Ask the user if they want to invalidate all of their existing sessions, or invalidate the sessions automatically.
 
-## Fiddler
-
-- [當作 Proxy](https://docs.telerik.com/fiddler/configure-fiddler/tasks/usefiddlerasreverseproxy)
-- [Capture Android](https://docs.telerik.com/fiddler/configure-fiddler/tasks/configureforandroid)
-- 輸出憑證
-  1. Tools/HTTPS 右上角有 Actions
-  2. 選 export root certificate to desktop
-  3. [憑證輸入 android](https://github.com/raymond-chia/Note/blob/main/Security.md#android)
-
 ## Frida
 
 - [Frida](https://frida.re/)
@@ -271,7 +262,23 @@
   - [Reset password](https://github.com/raymond-chia/Note/blob/main/Security.md#email-login)
 - [time based one time password](https://datatracker.ietf.org/doc/html/rfc6238)
 
-## Wireshark
+## Sniff
+
+### Fiddler
+
+- [當作 Proxy](https://docs.telerik.com/fiddler/configure-fiddler/tasks/usefiddlerasreverseproxy)
+- [Capture Android](https://docs.telerik.com/fiddler/configure-fiddler/tasks/configureforandroid)
+- 輸出憑證
+  1. Tools/HTTPS 右上角有 Actions
+  2. 選 export root certificate to desktop
+  3. [憑證輸入 android](https://github.com/raymond-chia/Note/blob/main/Security.md#android)
+
+### Mitmproxy
+
+- sniff docker
+  - https://dev.to/jandedobbeleer/intercept-http-traffic-exiting-a-docker-container-3g68
+
+### Wireshark
 
 - For every new TLS 1.3 session handshake, session keys will be created and stored in a local SSL key log file
   1. 指定 SSL key log file 儲存位置

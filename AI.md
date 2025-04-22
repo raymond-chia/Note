@@ -14,16 +14,283 @@
     - 根據之前用字, 決定下一個要抑制哪些字的機率
     - 如果沒有其他適合的字, 還是可能用被抑制的字
 - https://beta.character.ai
+- Distilling Step-by-Step https://www.ithome.com.tw/news/158902
+  - 小型專用模型有兩種訓練方式, 分別是微調 ( Fine-tuning ) 和蒸餾 ( Distillation )
+    - 微調使用人工註釋資料, 更新預先訓練的 BERT 或 T5 等規模較小的模型
+    - 蒸餾的概念則是將一個大型模型, 或稱為教師模型的知識, 轉移至一個比較小的學生模型
+      - 運用大型語言模型所生成的標籤, 訓練相同但規模較小的模型
+      - 雖然蒸餾法可以讓學生模型的規模和複雜性都遠低於教師模型, 效能卻可以接近或是超越教師模型
+  - 要達到良好的效能, 微調法需要人工生成標籤. 這個過程既昂貴又繁瑣
+  - 蒸餾法則需要大量未標記的資料, 且收集資料本身就並非一件簡單的事
+  - 逐步蒸餾法能夠讓研究人員以比標準微調或是蒸餾法少得多的訓練資料, 訓練一個更小且專用於特定任務的模型, 而且效能還可能可以優於 Few-Shot Prompted LLM
+  - Few-Shot Prompted LLM: 大型語言模型使用少量的樣本, 並透過提示來完成任務的方法, 像是要求語言模型完成翻譯任務. 研究人員便可以提供少量的英翻中樣本, 再給予新的提示問題, 期望模型能夠依據範例正確翻譯新問題
+  - 當大型語言模型被問到某些問題時, 能夠透過推理並給出最終答案. 這些中間的推理包含了可以完成任務需要的重要知識. 但是小型模型需要大量資料才能學到這些知識. 因此逐步蒸餾的核心想法, 便是從大型語言模型中擷取有用的自然語言解釋, 也就是中間的推理步驟, 然後使用這些解釋更有效地訓練小型模型
+  - 因此逐步蒸餾的步驟
+    1. 從大型語言模型中擷取解釋. 研究人員會提供少數範例. 這些範例包含問題, 中間的解釋和答案, 引導大型語言模型對新的問題產生相對應的解釋
+    2. 利用第一階段取得的解釋訓練小型模型. 小型模型學習由大型語言模型生成的中間推理步驟, 便能夠更好地預測答案
 
-#### GPT
+#### Rank
+
+- 使用量: https://openrouter.ai/rankings?view=month
+- ai pk: https://www.youtube.com/watch?v=Ur8MbOj17Gs
+
+#### [提示詞](https://tenten.co/learning/co-star-tidd-ec-prompt-framework)
+
+- roles
+  - https://github.com/f/awesome-chatgpt-prompts
+  - https://github.com/cognitivecomputations/dolphin-system-messages/tree/main
+- CO-STAR
+
+| 縮寫 | 英文      | 中文     | 解釋                                                     |
+| ---- | --------- | -------- | -------------------------------------------------------- |
+| C    | Context   | 背景     | 為互動設置舞台，提供背景信息或請求所處的情境             |
+| O    | Objective | 目標     | 定義提示旨在達成的內容，具體說明語言模型的目標或期望輸出 |
+| S    | Style     | 風格     | 指定所需的寫作或回應風格，指導內容應如何呈現或表達       |
+| T    | Tone      | 語調     | 表示回應的情感特徵或態度，塑造信息的情感傳達方式         |
+| A    | Audience  | 觀眾     | 定義內容的目標觀眾或讀者，影響回應的語言、複雜性和方法   |
+| R    | Response  | 回應格式 | 描述回應應該如何結構，決定內容的組織和呈現方式           |
+
+- TIDD-EC
+
+| 縮寫 | 中文     | 解釋                                                                                                                |
+| ---- | -------- | ------------------------------------------------------------------------------------------------------------------- |
+| T    | 任務類型 | 當前任務的類型，清楚地指示出 LLM 預期執行的活動類型                                                                 |
+| I    | 指示     | 概述了 LLM 應遵循的具體步驟或指導方針，以完成任務。這個組件對於確保模型的輸出與用戶的期望緊密對齊至關重要           |
+| D    | 做       | 指定 LLM 應該採取的行動，以成功完成提示。這包括使用某些語言、結構或應該包含在回應中的信息                           |
+| D    | 不要     | 突出顯示 LLM 在回應中應避免的行動或元素。這對於防止常見錯誤或誤解至關重要，因為這些錯誤可能導致不準確或不相關的輸出 |
+| E    | 範例     | 提供期望結果或回應的具體範例。這個組件對於指導 LLM 朝向預期的格式、風格或內容的回應是無價的                         |
+| C    | 用戶內容 | 用戶提供的數據，LLM 應在其回應中使用或引用                                                                          |
+
+#### Provider
+
+##### AWS Bedrock
+
+> You don't have access to the model with the specified model ID.
+
+- 申請使用權限: https://us-east-1.console.aws.amazon.com/bedrock/home?region=us-east-1#/modelaccess
+  - 申請的時候要注意地區  
+    https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html
+    - 基本上是 us-east-1
+- 確認 boto3.client 的 region_name
+- model id list
+  - https://docs.aws.amazon.com/bedrock/latest/userguide/model-ids.html
+  - 如果在 modelaccess 顯示 Cross-region inference, 則要看 Inference profile ID: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
+
+##### Google
+
+- key: https://aistudio.google.com/app/apikey
+- model list
+  - https://ai.google.dev/gemini-api/docs/models/gemini
+  - https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models
+
+##### Claude
+
+- 擅長寫程式 ??
+
+##### GPT
 
 - [可 few shot](https://www.youtube.com/watch?v=_8yVOC4ciXc)
   - 數量越多效果越好
   - 模型越大, few shot 效果越好
 
-##### GPT Roles
+###### Copilot 範例
 
-- https://github.com/f/awesome-chatgpt-prompts
+- Bing 的 copilot 不適合產生程式碼 [2023/2](https://www.youtube.com/watch?v=8BBzaiAbxp4)
+  - 只適合搜尋
+  - 改用 OpenAI 或 VS Code
+- write a javascript method that uses 某種方法 to 達到某種目的
+- translate the javascript code above into R
+- analyze this error message: 錯誤內容
+
+##### Deepseek
+
+- https://www.youtube.com/watch?v=gY4Z-9QlZ64
+  - 一個大模型裡面有諸多小模型 (專家)
+    - 每次呼叫只會使用專家模型, 降低消耗
+    - 訓練的時候使用 distil 降低消耗
+  - chain of thought
+    - 不用通常的訓練方式: 問題, chain of thought, 答案
+    - 只提供: 問題, 答案, 要 AI 自己訓練出 chain of thought
+      - AI 學會自問自答
+
+#### Vector / Embedding
+
+- https://www.youtube.com/watch?v=gQddtTdmG_8
+  - 如果直接訓練 LLM 學習語言, 會花很多功在學習單字
+  - 改成讓 LLM 學習 embedded 之後的文字
+    - vector 因為是數字, 比較好量化評分 LLM 回應, 比較好訓練
+  - 訓練如何預測下個字的時候, 同時會訓練 vector 轉換器 ??
+  - 可以加減 vector, 得到另外一個字: `king - man + woman = queen`
+
+##### Clip
+
+- 調整 vectoring, 將 image 與字串對應到接近的 vector
+  - https://www.youtube.com/watch?v=KcSXcpluDe4
+  - 一次練一個 batch. 逼近相符圖文的 vectors, 遠離不符圖文的 vectors
+
+#### Retrieval Augmented Generation (RAG)
+
+- 生成回應前參考指定知識庫
+- 流程
+  - https://python.langchain.com/v0.2/docs/how_to/chatbots_retrieval
+  - https://python.langchain.com/v0.2/docs/concepts/#retrieval
+- 事前先 Indexing, 要用的時候 Retrieval
+  - Retrievers 可以是 Vector stores, 也可以是 search service (例如 Wikipedia search)
+  - citation
+- vector store
+  - 要選適當的 dimension
+  - 針對 keyword 表現可能不如普通搜尋 ??
+    - dense embeddings
+    - [sparse embeddings 適合 keyword searches](https://cloud.google.com/vertex-ai/docs/vector-search/overview#terminology)
+    - Recall: The percentage of nearest neighbors returned by the index that are actually true nearest neighbors. For example, if a nearest neighbor query for 20 nearest neighbors returned 19 of the ground truth nearest neighbors, the recall is 19/20x100 = 95%.
+
+##### GraphRAG
+
+- 在 vector store 建立 embeddings 之間的關聯
+- local search: 第一層關聯
+- global search: 高層的關聯
+  - 理解抽象
+  - 容易幻覺
+- drift search: local + global
+
+#### Injection
+
+##### Indirect prompt injection
+
+- 把 injection 埋在 llm 會用來搜尋的資料庫
+
+#### IDE
+
+##### Cline
+
+###### Step 1: Locate the Extension Folder
+
+####### Windows
+
+1. Open File Explorer and go to:
+
+```
+%USERPROFILE%\.vscode\extensions\
+```
+
+2. Look for a folder named similar to:
+
+```
+github.copilot-chat-<version>
+```
+
+####### macOS/Linux
+
+1. Open your file manager or Terminal and navigate to:
+
+```
+~/.vscode/extensions/
+```
+
+2. Find the folder named like:
+
+```
+github.copilot-chat-<version>
+```
+
+###### Step 2: Open the extension.js File
+
+1. Inside the github.copilot-chat-<version> folder, open the dist directory.
+2. Locate the file named extension.js.
+3. Open this file with your preferred text editor (e.g., VS Code).
+
+###### Step 3: Find the Header Code
+
+Search for the text: "x-onbehalf-extension-id"
+
+###### Step 4: Remove or Comment Out the Code
+
+###### Step 5: Restart Visual Studio Code
+
+#### 整合
+
+##### Dify
+
+- 提供工作流
+
+##### LangChain
+
+- https://python.langchain.com/v0.2/docs/tutorials
+- framework for developing applications powered by large language models
+- LCEL: https://myapollo.com.tw/blog/langchain-expression-language
+  - dict 會被轉成 RunnableParallel
+  - function 會被轉成 RunnableLambda
+    - 如果 function 會根據條件回不同的 Runnable, 就等於 RunnableBranch
+  - `RunnablePassthrough.assign(新欄位名稱=目標LCEL)`
+  - 參數 `LCEL.input_schema.schema()`
+  - 回傳值 `LCEL.output_schema.schema()`
+  - 圖 `LCEL.get_graph().print_ascii()`
+- chat focused playground: https://python.langchain.com/v0.2/docs/langserve/#chat-playground
+- 動態調整設定: https://python.langchain.com/v0.2/docs/how_to/configure
+- 輪流用不同的 api key: https://clemenssiebler.com/posts/azure_openai_load_balancing_langchain_with_fallbacks
+
+###### RAG
+
+- 歷史記錄: https://python.langchain.com/v0.1/docs/use_cases/chatbots/retrieval/#query-transformation
+- 不使用 built-in function: https://python.langchain.com/v0.2/docs/tutorials/rag/#customizing-the-prompt
+
+###### Image
+
+- https://python.langchain.com/v0.2/docs/how_to/multimodal_prompts  
+  在 chain 塞入以下可以讓 model 看到圖片
+
+```python
+def insert_image(x):
+    import requests
+
+    image = base64.b64encode(
+        requests.get(
+            "https://imageio.forbes.com/specials-images/imageserve/675ce0f75b64a53f072010c6/Ciri/960x0.jpg?format=jpg&width=960"
+        ).content
+    ).decode("utf-8")
+    return [
+        HumanMessage(
+            content=[
+                {"type": "text", "text": x["messages"][0].content},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image}"},
+                },
+            ]
+        )
+    ]
+    # 或下面
+    return x["messages"] + [
+        HumanMessage(
+            content=[
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{image}"},
+                },
+            ]
+        )
+    ]
+```
+
+###### debug
+
+- /docs 可以看 openapi
+- ```py
+  import langchain
+  langchain.debug = True
+  ```
+- 在 fastapi 註冊 middleware 來印 request https://github.com/fastapi/fastapi/issues/3361
+
+##### Gateway
+
+- OpenRouter
+- LiteLLM
+
+#### 雜項
+
+- https://chatgpt.com/gpts
+- [annotation reply](https://docs.dify.ai/guides/biao-zhu/annotation-reply): 人工修改某種問題的回答
+- [NotebookLM](https://notebooklm.google.com): 整理上傳的檔案, 並提供問答 (rag ??)
 
 ## GAN
 
@@ -32,16 +299,24 @@
 
 ## Text to Image
 
+- 看 prompt 對圖片的影響: https://huggingface.co/spaces/neggles/wd-tagger-heatmap
 - [Dall-e2 vs Disco Diffustion](https://medium.com/@nin_artificial/dall-e-2-vs-disco-diffusion-c6de6bfbacf9)
 - Stable Diffusion
   - https://github.com/invoke-ai/InvokeAI
   - https://github.com/AUTOMATIC1111/stable-diffusion-webui
     - api 文件在架設 stable diffusion server 的 `網址/docs`
     - command line arguments 加上 `--listen` 可以讓外界連
-    - https://colab.research.google.com/github/acheong08/Diffusion-ColabUI/blob/main/Diffusion_WebUI.ipynb#scrollTo=Y4qjIc1XXKWw
-    - https://github.com/camenduru/stable-diffusion-webui-colab/tree/v2.0
-  - https://github.com/DominikDoom/a1111-sd-webui-tagcomplete/blob/main/README_ZH.md
+  - https://github.com/comfyanonymous/ComfyUI
+    - https://github.com/ltdrdata/ComfyUI-Manager
+    - 用於安裝 comfy ui 相關功能
+    - 也是用 --listen 讓外界連
   - https://ai.dawnmark.cn/
+  - 直接用預設模型 + lora
+- Stable Zero123
+- Flux
+- multi view diffusion
+  - https://mv-dream.github.io
+  - 3d
 - Midjourney
   - [prompts](https://www.techbang.com/posts/105911-free-ultimate-chatgpt-tips-midjourney-treasure-god-map-1200?fbclid=IwAR0yMPvigCn8-llVd4Wrw-KSAJZaVuloEBnhkLr6YRrc_jaAKawDW0-B7r4_aem_th_AeOP0Rq4RuClf3tCCW6xeXcv1tHWUL_s0MRAAX48pVPG6Qku5f4J-9yQENyr_2PZPf0)
 - visual chatgpt
@@ -49,6 +324,11 @@
 - GFPGAN: face restoration
 - ai models 集散地
   - https://civitai.com/
+
+#### Blinkshot
+
+- https://github.com/Nutlope/blinkshot
+- 可以即時產生圖片
 
 #### Stable Diffusion
 
@@ -72,9 +352,11 @@
   - https://docs.qq.com/doc/DWFdSTHJtQWRzYk9k
   - prompt demo: https://zele.st/NovelAI/
   - image to prompt: https://replicate.com/methexis-inc/img2prompt
+  - 手姿勢: https://note.com/vivid_walrus6061/n/n161a3a02ece4
 - sampler
-  - euler a 每一步變動頗大
   - ddim 很快定型
+  - euler a 每一步變動頗大
+  - `Euler/Euler_a` 快, `DPM++_2M` 中等, `DPM++SDE` 慢
 - prompt matrix
   - 用 `|` 區隔. 比如 `forest, | style a | style b |`
 - x/y plot
@@ -95,7 +377,7 @@
 - seg 用的顏色要參考 ade20k
 - 紙娃娃流程 https://vocus.cc/article/649803f4fd897800019abf84?fbclid=IwAR3Asd9exIJZ6qpTMoE-eQIKsW7jrHoChU3KBg2ucp8VLrunLnRLbWPRwQM
 
-##### 其他配件
+##### 其他
 
 - models: https://rentry.org/sdmodels
   - [調整](https://www.youtube.com/watch?v=dVjMiJsuR5o)
@@ -104,28 +386,140 @@
     - Textual Inversion: 訓練過程是去調整文字提詞對模型產圖的精準度. KB
     - LoRA: 在原有的大模型裡加入新的中間層, 訓練過程只調整那些新的中間層權重. 幾百 MB
     - Hypernetworks: 跟 LoRA 很像, 但是間接透過一個 Hypernetwork 模型去對原本的模型做改變. 幾百 MB
+  - https://civitai.com/models/260267/animagine-xl-v3
 - latent couple: 不同區塊可以用不同的 prompt
 - cutoff: 避免元素互相影響 https://mnya.tw/cc/word/1973.html
 - 修手: https://github.com/jexom/sd-webui-depth-lib
-- posex: 調整 openpose
+- 調整 openpose https://www.youtube.com/watch?v=n1LOPci7ICk
 - Roop: 換臉
 - GLIGen: 分區指定 prompt
+  - https://github.com/mut-ex/gligen-gui
 - Inpaint Anything: 協助產生 inpaint 的 mask
-- OneButtonPrompt, Tag Autocomplete: 幫忙產生 prompt
+- 透明背景: https://github.com/layerdiffusion/sd-forge-layerdiffusion
+- 兩張圖產生中間動畫 https://x.com/tds_95514874/status/1693603992092524662?s=46&t=y26bJt9O7xPNkMWJx-w1og
+- LCM: 加速產圖
+- Create Consistent, Editable AI Characters & Backgrounds (ComfyUI): https://www.youtube.com/watch?v=849xBkgpF3E
 - source
   - https://www.youtube.com/@Aitrepreneur
   - https://mnya.tw/cc/word/category/ai-drawing
+  - https://www.kadokado.com.tw/book/22947
 
 ##### 範例
 
 - 產生 3D 角色: https://talesofsyn.com/posts/creating-3d-character-models
 - 產生 isometric 場地: https://talesofsyn.com/posts/creating-isometric-rpg-game-backgrounds
 - 紙娃娃: https://vocus.cc/article/649803f4fd897800019abf84?fbclid=IwAR3Asd9exIJZ6qpTMoE-eQIKsW7jrHoChU3KBg2ucp8VLrunLnRLbWPRwQM
+- 點光源: https://x.com/toyxyz3/status/1796226845517783264?s=46&t=y26bJt9O7xPNkMWJx-w1og
+- 用 pseudo code 產生連貫的圖片
+  - https://www.youtube.com/watch?v=3rb-54Q5fig
+  - 雖然用於整理文字, 但是可以參考 https://baoyu.io/blog/prompt-engineering/advanced-prompting-using-pseudocode-to-control-llm-output#google_vignette
+- 出圖 -> inpaint 要動的區域產生 A B 兩張圖 -> tooncrafter 製作短動畫用 AB / BA 組合 -> 頭尾相接後就成為 loop 動畫
+- AI 演化: https://www.ptt.cc/bbs/C_Chat/M.1730732828.A.70C.html
+
+#### 自回歸 ??
+
+- 在 prompt 短的情況下, 比 stable diffusion 更嚴格遵守 prompt, 不容易擅自創造不在 prompt 裡的東西
+
+## Text to 3D
+
+- Tripo3D
+  - https://x.com/toyxyz3/status/1806932777386098715?s=46&t=y26bJt9O7xPNkMWJx-w1og
+  - 面數較下面低
+- Rodin
+- MetaHuman
+  - 面數高
+- meshy
+  - 不能用扁平風格圖片
+- 要求 claude 控制 blender: https://x.com/oran_ge/status/1899599891564999051?s=46&t=fj_x062sdFD-mXCkllQ04w
+- nvidia: https://youtu.be/kB3J9EivZN0?si=L098tSqHPlDPdFnX
+
+## Animation
+
+- Unity Muse
+  - 可以產生動作
+
+## Image to Image
+
+- ideogram
+- Trellis
+
+## Music
+
+- https://github.com/GrandaddyShmax/audiocraft_plus ?
+- https://www.stableaudio.com/ ?
+- https://www.udio.com/blog/introducing-v1-5 ?
+- Suno AI
+
+## Platform
+
+### AWS
+
+- 花費警報: https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/monitor_estimated_charges_with_cloudwatch.html
+- 用量: cloudwatch
+
+### Azure
+
+- 有多種 azure studio
+  - azure ai studio
+  - azure openai studio
+- host fine tuned model 會按時收費
+- rag 範例 https://github.com/langchain-ai/langchain/blob/d64bd32b20e359c1c4524a839b343302ed5a6f04/templates/rag-azure-search/rag_azure_search/chain.py
+  - 搭配[RAG 的範例](<#Retrieval-Augmented-Generation-(RAG)>)
+  - https://learn.microsoft.com/zh-tw/azure/ai-services/openai/concepts/use-your-data ??
+  - https://learn.microsoft.com/zh-tw/azure/ai-services/openai/use-your-data-quickstart ??
+  - web app 是設計面向一般使用者 ??
+    - https://learn.microsoft.com/en-us/azure/ai-studio/tutorials/deploy-chat-web-app ??
+- 花費警報: Resource group (type) -> Cost Management -> Budgets
+- 用量: Azure OpenAI (type) -> Monitoring -> Metrics
+
+### Google
+
+#### Gemini
+
+- key: https://aistudio.google.com/app/apikey
+- 適合搜尋
+- vs www.perplexity.ai ??
+
+#### Agent Builder
+
+- 如果要用來當作 vector store, 需要使用 google.cloud.discoveryengine_v1alpha @ 2024/11
+  - langchain VertexAISearchRetriever 在用 beta
+  - [範例](https://github.com/GoogleCloudPlatform/generative-ai/blob/d2d888ba3767af893c4fadc1446c32a1c3a59826/search/retrieval-augmented-generation/examples/question_answering.ipynb)
+
+### Nvidia
+
+- https://docs.api.nvidia.com/nim/docs/product#how-do-i-get-additional-api-credits
+  - 只能透過網頁呼叫, 沒有提供付費雲端服務
+
+## Video
+
+- Runway 的 Gen-3
+  - 範例: https://x.com/Ror_Fly/status/1899473065328656485
+    - 先叫 claude 產生 three.js code
+    - 播放並錄製
+    - 傳送到 runway 產生影片
+    - 到 Magnific 修圖
+    - 回到 runway 修正影片
+- 拖拉圖片 https://generative-dynamics.github.io
+- 搭配 stable diffusion ? https://github.com/hotshotco/hotshot-xl
+- 補幀數 (frame): Flowframes
+- Luma AI
+  - 參數下 live2d ??
+  - e.g. live2d standing motion, hair swaying, 2d, looped
+- https://github.com/jbilcke-hf/clapper
 
 ## Voice
 
-- voice.ai
-- https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI
+- voice.ai ??
+- ElevenLabs ??
+- https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI ??
+- https://www.youtube.com/watch?v=9lsSSPnF67Q ??
+- 文字轉聲音 + 影片 https://www.heygen.com
+- 分離人的聲音 https://vocalremover.org/
+
+## Workflow
+
+- https://github.com/langgenius/dify
 
 ## Collection
 
@@ -136,3 +530,6 @@
 - [PPO](https://en.wikipedia.org/wiki/Proximal_Policy_Optimization), SAC
 - Generative Adversarial Imitation Learning (GAIL)
 - Long Short Term Memory (LSTM)
+- text to image, 影片轉動畫 ?
+  - https://domoai.app/
+  - https://human3daigc.github.io/Textoon_webpage/
