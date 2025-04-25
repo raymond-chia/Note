@@ -1,0 +1,17 @@
+version: "3.8"
+
+services:
+  app:
+    image: python:3.13
+    container_name: python-app
+    volumes:
+      - ./:/app
+    working_dir: /app
+    environment:
+      - PYTHONPATH=/app
+      - PYTHONUNBUFFERED=1
+    command: >
+      bash -c "pip install poetry &&
+              poetry config virtualenvs.create false &&
+              poetry install &&
+              tail -f /dev/null"
