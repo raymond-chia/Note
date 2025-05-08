@@ -772,6 +772,19 @@ import app1.package.tool
   - 有些小版號也是 breaking change ... chromadb@0.5.3 -> chromadb@0.5.4
 - 指定版本: poetry add chromadb@0.5.3
 
+#### Gunicorn
+
+- 如何把參數傳到 gunicorn 管理的 app
+  - https://github.com/benoitc/gunicorn/issues/135
+    ```py
+    def load_app(cfg_file):
+        cfg = load_app_config(cfg_file)
+        return my_app(cfg)
+    ```
+    ```bash
+    $ gunicorn 'webapp:load_app("/path/to/my_config.ini")'
+    ```
+
 #### FastAPI
 
 - 自動產生 OpenAPI
@@ -879,6 +892,8 @@ import app1.package.tool
 
 - Mac 傳輸檔案到 Android: https://www.android.com/filetransfer/
   - 遇到問題可以試試拔線重插
+- Google Play 會阻止下載 Android SDK 太舊的軟體
+  - 所以就算沒有要透過 Google Play 販售軟體, 還是需要升級 Android SDK
 
 #### Samsung
 

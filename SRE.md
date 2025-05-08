@@ -299,6 +299,31 @@
 
 ## Amazon
 
+- awscli 登入: `aws configure sso`
+  - `aws sso login --sso-session {設定的 SSO session name}`
+  - `export AWS_PROFILE={profile 名稱}`
+  - 確認有哪些 profile `cat ~/.aws/config`
+- 所有資源上面都可以加上 tag
+  - value 可以為空
+  - display name 可能直接用 Name 這個 tag
+  - 可用來管理權限
+- cloud trail 記錄操作
+- resource explorer 查詢有用到哪些資源
+  - 昂貴版 cloud config ??
+- cloud formation 類似 terraform
+  - terraform 的 awscc 是包裝 cloud formation, 用於 aws 沒有支援的時候
+- arn 是資源的 aws id
+- trusted advisor, compute optimizer 協助 ??
+- commitment 盡量用 compute saving plan
+  - reserved instance 只用來搶資源 ??
+
+### 權限
+
+- organization unit (OU) 類似 user group ??
+- service control policy: 套用全組織
+- sso, scim: 跨服務驗證身份 (給人用的 ??)
+  - 如果不用 sso, 而是另外設定 user 密碼, 且密碼外洩, 帳號會被鎖住
+- identity federation: 跨服務驗證身份 (給服務用的)
 - bedrock 權限
   - 文件: https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-permissions.html
   - [create policy](https://us-east-1.console.aws.amazon.com/iam/home?region=ap-northeast-1#/policies/create)
@@ -396,9 +421,9 @@
 1. prepare files to build docker image
    1. create binary that will be executed in docker container
 2. `gcloud auth configure-docker`
-3. `docker build -t {registry}:{version} .`
-4. `docker push {registry}:{version}`
-5. `gcloud run deploy --allow-unauthenticated --image {registry}:{version} --port {port}`
+3. `docker build -t {registry}/{image_name}:{image_tag} .`
+4. `docker push {registry}/{image_name}:{image_tag}`
+5. `gcloud run deploy --allow-unauthenticated --image {registry}/{image_name}:{image_tag} --port {port}`
    - 如果沒有權限設定 `--allow-unauthenticated`, 可以請有權限的人在 web console 對應 service 的 `TRIGGERS`/`Authentication` 設定 `Allow unauthenticated invocations`
    - `gcloud run deploy --help` for more options
    - On success, the command line displays the service URL.
@@ -574,6 +599,9 @@
   - 保存 Host header
   - X-Forwarded-For
     - `X-Forwarded-For: ...,{client-ip},{load-balancer-ip}`
+    - https://cloud.google.com/load-balancing/docs/https#x-forwarded-for_header
+      - Thus, an upstream process after your load balancer's backend might receive an X-Forwarded-For header of the form:
+        `<existing-values>,<client-ip>,<load-balancer-ip>,<GFE-IP>,<backend-IP>`
 - Global external HTTP(S) load balancer
   - PREMIUM
   - Health check
@@ -685,7 +713,7 @@
     - https://cloud.google.com/sql/docs/mysql/admin-api/metrics
   - Logs Based Metrics
     - https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring/sli-metrics/logs-based-metrics#lbm-defn
-    - e.g. https://gitlab.rayark.com/service/deploy/-/blob/9aab76691be3ceb0dd240e8c42f056634a1c41a9/rayark-monitoring/monitoring/alerts/lb-http/log-based-metrics.tf#L22
+    - e.g. terraform 建立的 google_logging_metric
   - Custom
     - https://cloud.google.com/monitoring/custom-metrics
 
