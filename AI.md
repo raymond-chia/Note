@@ -61,7 +61,7 @@
 | E    | 範例     | 提供期望結果或回應的具體範例。這個組件對於指導 LLM 朝向預期的格式、風格或內容的回應是無價的                         |
 | C    | 用戶內容 | 用戶提供的數據，LLM 應在其回應中使用或引用                                                                          |
 
-#### Provider
+#### Provider/Model
 
 ##### AWS Bedrock
 
@@ -78,14 +78,23 @@
 
 ##### Google
 
+###### Gemini
+
 - key: https://aistudio.google.com/app/apikey
 - model list
   - https://ai.google.dev/gemini-api/docs/models/gemini
   - https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models
 
+###### Vertex
+
+- 1. 到 Model Garden 搜尋 model
+  1. enable model
+  1. 在 pick one region 處取得可用的位置
+  1. 給予 service account 權限: aiplatform.endpoints.predict. 例如 role `Vertex AI Platform Express User`
+
 ##### Claude
 
-- 擅長寫程式 ??
+- 擅長寫程式
 
 ##### GPT
 
@@ -112,6 +121,8 @@
     - 不用通常的訓練方式: 問題, chain of thought, 答案
     - 只提供: 問題, 答案, 要 AI 自己訓練出 chain of thought
       - AI 學會自問自答
+
+##### Grok
 
 #### Vector / Embedding
 
@@ -310,6 +321,7 @@ def insert_image(x):
     - https://github.com/ltdrdata/ComfyUI-Manager
     - 用於安裝 comfy ui 相關功能
     - 也是用 --listen 讓外界連
+    - docker 版本 ?? https://replicate.com/fofr/any-comfyui-workflow
   - https://ai.dawnmark.cn/
   - 直接用預設模型 + lora
 - Stable Zero123
