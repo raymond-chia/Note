@@ -4,6 +4,8 @@ services:
   app:
     image: python:3.13
     container_name: python-app
+    networks:
+      - app-network
     volumes:
       - ./:/app
     working_dir: /app
@@ -15,3 +17,7 @@ services:
               poetry config virtualenvs.create false &&
               poetry install &&
               tail -f /dev/null"
+
+networks:
+  app-network:
+    external: true

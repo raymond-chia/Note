@@ -60,6 +60,13 @@
 
 - https://docs.aws.amazon.com/cli/latest/reference/s3/
 
+## Azure
+
+- 先在 Portal 建立 resource group
+- AI Foundry 建立
+- 到 Models + endpoints 部署 ai model
+- 可以在 Portal > Resource Group > Azure AI Foundry > Resource Management > Keys and Endpoint 管理 api key
+
 ## Browser
 
 - 高效儲存: https://www.notion.com/blog/how-we-sped-up-notion-in-the-browser-with-wasm-sqlite
@@ -259,7 +266,24 @@
 
 ### Install docker on mac
 
+#### Colima
+
+- 開源
+- 自動掛 $HOME
+- To start colima now and restart at login:  
+  brew services start colima  
+  Or, if you don't want/need a background service you can just run:  
+  /usr/local/opt/colima/bin/colima start -f
+
+#### Podman
+
+- red hat
+- 自動掛 $HOME
+
+#### Minikube
+
 - https://dhwaneetbhatt.com/blog/run-docker-without-docker-desktop-on-macos/
+- 不會自動掛 $HOME, 而且設定比較麻煩
 
 ```bash
 # Install hyperkit and minikube
@@ -324,6 +348,7 @@ minikube mount {source directory}:{target directory}
 - --mount
   - `RUN --mount=type=cache,target=/app` 臨時掛載 cache
   - `RUN --mount=type=secret,id=DOTENV_LOCAL,dst=.env` 臨時掛載 secret, DOTENV_LOCAL 是標示符
+- https://github.com/raymond-chia/Note/blob/main/script/python/docker-compose.yaml 搭配 `docker network create {network name}`
 
 ### Docker in Docker
 
@@ -499,9 +524,19 @@ b: *a
   - 後續步驟用 `needs` 指定是處理哪個 matrix 項目: https://docs.gitlab.com/ee/ci/yaml/#needsparallelmatrix
 - Job token permissions 設定跨專案權限
 
+#### Workload Identity Federation
+
+- 用短期 token 在 gitlab, gcp 之間溝通
+  - https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines#configure-pipeline
+  - aws, azure 應該也有支援
+
 ## Google
 
 - 服務狀態: https://status.cloud.google.com
+
+### AI
+
+- model garden
 
 ### Bigquery
 
@@ -772,6 +807,19 @@ import app1.package.tool
   - 有些小版號也是 breaking change ... chromadb@0.5.3 -> chromadb@0.5.4
 - 指定版本: poetry add chromadb@0.5.3
 
+#### Gunicorn
+
+- 如何把參數傳到 gunicorn 管理的 app
+  - https://github.com/benoitc/gunicorn/issues/135
+    ```py
+    def load_app(cfg_file):
+        cfg = load_app_config(cfg_file)
+        return my_app(cfg)
+    ```
+    ```bash
+    $ gunicorn 'webapp:load_app("/path/to/my_config.ini")'
+    ```
+
 #### FastAPI
 
 - 自動產生 OpenAPI
@@ -879,6 +927,8 @@ import app1.package.tool
 
 - Mac 傳輸檔案到 Android: https://www.android.com/filetransfer/
   - 遇到問題可以試試拔線重插
+- Google Play 會阻止下載 Android SDK 太舊的軟體
+  - 所以就算沒有要透過 Google Play 販售軟體, 還是需要升級 Android SDK
 
 #### Samsung
 
@@ -962,6 +1012,11 @@ import app1.package.tool
   - 檢查 `/etc/cron.d` 或其他 /etc/cron.`XXX`
     - https://gist.github.com/snail007/cec5d24f0f4ef0f850fa0b6120bed1cb
 - 設定觸發時間 https://stackoverflow.com/questions/584770/how-would-i-get-a-cron-job-to-run-every-30-minutes
+
+##### 防火牆
+
+- sudo ufw status
+- sudo ufw allow 8080
 
 ##### Debug
 
