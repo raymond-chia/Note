@@ -1,0 +1,6 @@
+# 作業系統
+.DS_Store
+
+# 環境變數 / 測試資料
+.env
+test-data
