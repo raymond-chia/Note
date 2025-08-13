@@ -299,6 +299,31 @@
 
 ## Amazon
 
+- awscli 登入: `aws configure sso`
+  - `aws sso login --sso-session {設定的 SSO session name}`
+  - `export AWS_PROFILE={profile 名稱}`
+  - 確認有哪些 profile `cat ~/.aws/config`
+- 所有資源上面都可以加上 tag
+  - value 可以為空
+  - display name 可能直接用 Name 這個 tag
+  - 可用來管理權限
+- cloud trail 記錄操作
+- resource explorer 查詢有用到哪些資源
+  - 昂貴版 cloud config ??
+- cloud formation 類似 terraform
+  - terraform 的 awscc 是包裝 cloud formation, 用於 aws 沒有支援的時候
+- arn 是資源的 aws id
+- trusted advisor, compute optimizer 協助 ??
+- commitment 盡量用 compute saving plan
+  - reserved instance 只用來搶資源 ??
+
+### 權限
+
+- organization unit (OU) 類似 user group ??
+- service control policy: 套用全組織
+- sso, scim: 跨服務驗證身份 (給人用的 ??)
+  - 如果不用 sso, 而是另外設定 user 密碼, 且密碼外洩, 帳號會被鎖住
+- identity federation: 跨服務驗證身份 (給服務用的)
 - bedrock 權限
   - 文件: https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-permissions.html
   - [create policy](https://us-east-1.console.aws.amazon.com/iam/home?region=ap-northeast-1#/policies/create)
@@ -396,14 +421,23 @@
 1. prepare files to build docker image
    1. create binary that will be executed in docker container
 2. `gcloud auth configure-docker`
-3. `docker build -t {registry}:{version} .`
-4. `docker push {registry}:{version}`
-5. `gcloud run deploy --allow-unauthenticated --image {registry}:{version} --port {port}`
+3. `docker build -t {registry}/{image_name}:{image_tag} .`
+4. `docker push {registry}/{image_name}:{image_tag}`
+5. `gcloud run deploy --allow-unauthenticated --image {registry}/{image_name}:{image_tag} --port {port}`
    - 如果沒有權限設定 `--allow-unauthenticated`, 可以請有權限的人在 web console 對應 service 的 `TRIGGERS`/`Authentication` 設定 `Allow unauthenticated invocations`
    - `gcloud run deploy --help` for more options
    - On success, the command line displays the service URL.
      - 也可以查詢 web console 對應 service 的 DETAILS
      - https://cloud.google.com/run/docs/quickstarts/build-and-deploy/deploy-go-service#deploy
+
+- gcloud beta run deploy 可以關閉 default url: `--no-default-url`
+- 可以設定 ingress: internal-and-cloud-load-balancing
+  - 其他 Google 服務可以透過 cloud run default url 走 Google 內網
+  - GKE subnet 需要設定 private_ip_google_access=true
+
+---
+
+- Health checks are not supported for serverless backends. Therefore, backend services that contain serverless NEG backends cannot be configured with health checks. However, you can optionally enable outlier detection to identify unhealthy serverless resources and route new requests to a healthy serverless resource.
 
 ### Cloud Storage
 
@@ -515,11 +549,6 @@
 - disk 效能 vs machine type
   - https://cloud.google.com/compute/docs/disks/performance
 
-### Identity
-
-- Application Default Credentials (ADC) 尋找順序: https://cloud.google.com/docs/authentication/application-default-credentials
-- 選擇驗證方式: https://cloud.google.com/docs/authentication#auth-decision-tree
-
 ### Identity Aware Proxy (IAP)
 
 - https://cloud.google.com/iap/docs/concepts-overview#how_iap_works
@@ -532,6 +561,12 @@
   - https://cloud.google.com/iap/docs/authentication-howto#signing_the_jwt
   - aud 是 `目標 url` 含 scheme (https://example.com)
 - 只認 cookie 不管來自哪個網站 ??
+
+### Firewall
+
+- firewall rule
+  - 適用於 targets
+  - 允許特定 source 呼叫 target
 
 ### Load Balancer
 
@@ -574,6 +609,9 @@
   - 保存 Host header
   - X-Forwarded-For
     - `X-Forwarded-For: ...,{client-ip},{load-balancer-ip}`
+    - https://cloud.google.com/load-balancing/docs/https#x-forwarded-for_header
+      - Thus, an upstream process after your load balancer's backend might receive an X-Forwarded-For header of the form:
+        `<existing-values>,<client-ip>,<load-balancer-ip>,<GFE-IP>,<backend-IP>`
 - Global external HTTP(S) load balancer
   - PREMIUM
   - Health check
@@ -685,14 +723,18 @@
     - https://cloud.google.com/sql/docs/mysql/admin-api/metrics
   - Logs Based Metrics
     - https://cloud.google.com/stackdriver/docs/solutions/slo-monitoring/sli-metrics/logs-based-metrics#lbm-defn
-    - e.g. https://gitlab.rayark.com/service/deploy/-/blob/9aab76691be3ceb0dd240e8c42f056634a1c41a9/rayark-monitoring/monitoring/alerts/lb-http/log-based-metrics.tf#L22
+    - e.g. terraform 建立的 google_logging_metric
   - Custom
     - https://cloud.google.com/monitoring/custom-metrics
 
-### Permission
+### 授權
 
 - google_project_iam_binding 是 Authoritative for a given role.
   也就是同一個 role 只能有一個 binding, 不然會覆蓋
+- Application Default Credentials (ADC) 尋找順序: https://cloud.google.com/docs/authentication/application-default-credentials
+- 選擇驗證方式: https://cloud.google.com/docs/authentication#auth-decision-tree
+- Workload Identity Federation
+  - https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines
 
 ### Registry (Docker image registry)
 
@@ -741,6 +783,9 @@
     - Metrics explorer > `compute.googleapis.com/instance/network/sent_bytes_count`
     - Logs Explorer
 - 偵測 Quota 用量 https://cloud.google.com/monitoring/alerts/using-quota-metrics#mql-rate-multiple-limits
+- 查詢費用 (透過 Big Query)
+  - `usage_start_time` 是費用發生的時間
+  - `view_PARTITIONTIME` 是費用寫進 bigquery 的時間
 
 ## JQ
 
@@ -917,8 +962,9 @@ kubectl set image deployment/{deployment-name} {container-name}={image}
   - https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl
   - 如果記錄到過時的 cluster
     - `kubectl config view` / `kubectl config current-context` 找到目標
-    - kubectl config delete-cluster `{cluster}` 移除目標
+    - kubectl config delete-cluster `{cluster}` 移除目標 或者 kubectl config delete-context `{context}`
     - 重跑一次 gcloud container clusters get-credentials ...
+- https://github.com/ahmetb/kubectx
 
 #### Debug
 
@@ -983,6 +1029,25 @@ kubectl set image deployment/{deployment-name} {container-name}={image}
 - node taint: 排斥 pod
 - pod toleration: 抵銷 taint
 - topologySpreadConstraints
+- 強迫部署到指定 zone:
+
+```yaml
+spec:
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: topology.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - asia-east1-c
+      # 或
+      nodeSelector:
+        topology.kubernetes.io/zone: asia-east1-c
+```
 
 ### 其他功能
 
@@ -1189,11 +1254,20 @@ kubectl set image deployment/{deployment-name} {container-name}={image}
 
 ### Grafana
 
-- google billing `%` = regex 的 `*` ??
-- `Query inspector` 可以確認 metricType 是否正確
 - legend
   - value 選擇 avg: 可以顯示某段時間的平均值 ??
   - min step 如果設定 1d 就是累計一天顯示一筆 ??
+
+#### Big Query
+
+- google billing `%` = regex 的 `*` ??
+- `inspect` `query` 可以要 Grafana 試打, 或直接在 panel 裡面跑 `run query`
+- `inspect` `panel json` 可以看原始設定, 可以確認 metricType 是否正確
+
+#### 美感
+
+- Display Name 不要 prefix: `${__field.labels.metric}`
+- 小數點: Decimals
 
 #### Prometheus
 
