@@ -26,6 +26,7 @@
 - Quad Tree
   - efficiently store data of points on a two-dimensional space
   - 優化碰撞檢測
+- Elo rating: 評估競技遊戲的玩家，並安排對手
 
 ## Animation
 
@@ -59,6 +60,13 @@
 ### CLI
 
 - https://docs.aws.amazon.com/cli/latest/reference/s3/
+
+## Azure
+
+- 先在 Portal 建立 resource group
+- AI Foundry 建立
+- 到 Models + endpoints 部署 ai model
+- 可以在 Portal > Resource Group > Azure AI Foundry > Resource Management > Keys and Endpoint 管理 api key
 
 ## Browser
 
@@ -259,7 +267,25 @@
 
 ### Install docker on mac
 
+#### Colima
+
+- 開源
+- 自動掛 $HOME
+- To start colima now and restart at login:  
+  brew services start colima  
+  Or, if you don't want/need a background service you can just run:  
+  /usr/local/opt/colima/bin/colima start -f
+- brew install docker-buildx
+
+#### Podman
+
+- red hat
+- 自動掛 $HOME
+
+#### Minikube
+
 - https://dhwaneetbhatt.com/blog/run-docker-without-docker-desktop-on-macos/
+- 不會自動掛 $HOME, 而且設定比較麻煩
 
 ```bash
 # Install hyperkit and minikube
@@ -324,6 +350,7 @@ minikube mount {source directory}:{target directory}
 - --mount
   - `RUN --mount=type=cache,target=/app` 臨時掛載 cache
   - `RUN --mount=type=secret,id=DOTENV_LOCAL,dst=.env` 臨時掛載 secret, DOTENV_LOCAL 是標示符
+- https://github.com/raymond-chia/Note/blob/main/script/python/docker-compose.yaml 搭配 `docker network create {network name}`
 
 ### Docker in Docker
 
@@ -357,6 +384,7 @@ strace $command_to_run_program # 執行目標程式, 查看錯誤
   - 設定 docker proxy: https://docs.docker.com/network/proxy/#set-proxy-using-the-cli
   - 取得 mitm cert: https://docs.mitmproxy.org/stable/concepts-certificates/#the-mitmproxy-certificate-authority
   - 設定 crt: https://askubuntu.com/questions/73287/how-do-i-install-a-root-certificate/377570
+- `docker login` 遇到 `connect: no route to host` 需要清理 docker networks
 
 ### Mirror
 
@@ -499,9 +527,19 @@ b: *a
   - 後續步驟用 `needs` 指定是處理哪個 matrix 項目: https://docs.gitlab.com/ee/ci/yaml/#needsparallelmatrix
 - Job token permissions 設定跨專案權限
 
+#### Workload Identity Federation
+
+- 用短期 token 在 gitlab, gcp 之間溝通
+  - https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines#configure-pipeline
+  - aws, azure 應該也有支援
+
 ## Google
 
 - 服務狀態: https://status.cloud.google.com
+
+### AI
+
+- model garden
 
 ### Bigquery
 
@@ -620,6 +658,11 @@ b: *a
 
 - NuGet maintains a reference list of packages used in a project and the ability to restore and update those packages from that list
 - ProtectedMemory 對記憶體加密
+
+### Java
+
+- 用 maven build 的時候, pom.xml 標明 JDK 版本
+- 如果用傳統方式上傳 GAE: appengine-web.xml ??
 
 ### Golang
 
@@ -772,6 +815,24 @@ import app1.package.tool
   - 有些小版號也是 breaking change ... chromadb@0.5.3 -> chromadb@0.5.4
 - 指定版本: poetry add chromadb@0.5.3
 
+#### Gunicorn
+
+- 如何把參數傳到 gunicorn 管理的 app
+  - https://github.com/benoitc/gunicorn/issues/135
+    ```py
+    def load_app(cfg_file):
+        cfg = load_app_config(cfg_file)
+        return my_app(cfg)
+    ```
+    ```bash
+    $ gunicorn 'webapp:load_app("/path/to/my_config.ini")'
+    ```
+- 結合 uvicorn
+  - `gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app -b 0.0.0.0:8000`
+  - 比較:
+    - Gunicorn 屬於 WSGI 伺服器, 主要優勢在於多進程管理
+    - Uvicorn 屬於 ASGI 伺服器, 專為非同步 Python Web 框架設計
+
 #### FastAPI
 
 - 自動產生 OpenAPI
@@ -879,6 +940,8 @@ import app1.package.tool
 
 - Mac 傳輸檔案到 Android: https://www.android.com/filetransfer/
   - 遇到問題可以試試拔線重插
+- Google Play 會阻止下載 Android SDK 太舊的軟體
+  - 所以就算沒有要透過 Google Play 販售軟體, 還是需要升級 Android SDK
 
 #### Samsung
 
@@ -962,6 +1025,11 @@ import app1.package.tool
   - 檢查 `/etc/cron.d` 或其他 /etc/cron.`XXX`
     - https://gist.github.com/snail007/cec5d24f0f4ef0f850fa0b6120bed1cb
 - 設定觸發時間 https://stackoverflow.com/questions/584770/how-would-i-get-a-cron-job-to-run-every-30-minutes
+
+##### 防火牆
+
+- sudo ufw status
+- sudo ufw allow 8080
 
 ##### Debug
 
@@ -1056,6 +1124,11 @@ import app1.package.tool
 ### Nginx
 
 - 可以根據設定檔控制回傳內容
+
+## Slack
+
+- 使用 [slack bolt](https://tools.slack.dev/bolt-python/building-an-app) 來建立 app
+  - 可以監聽的事件表: https://docs.slack.dev/reference/events
 
 ## Store
 
