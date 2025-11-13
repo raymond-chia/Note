@@ -8,10 +8,23 @@
 
 - https://www.reddit.com/r/twinegames/comments/q21fog/layered_image_for_dress_up_mechanic/
 
+## 2D
+
+- 整理: https://docs.google.com/document/d/1hHOvY-RupxMkg18haMGXFHC4bbfc03DIpgc1daMl26c/edit
+  - 公開課程: https://www.cctalk.com/m/program/1565344596714144
+
+## 3D
+
+- https://www.fab.com/
+
 ## Animation
 
-- Mixamo (adobe)
-- AE 圖釘
+- Mixamo (Adobe)
+- After Effects (Adobe)
+- https://docs.google.com/presentation/d/10e_jUsE9gxkyS_nVfiKluhCd791wkonvhHcpRxUQ_Jk/edit?fbclid=IwAR3vmCoigvDB1yv84UhSawS2WyFX9JW-2FWREKAseb7PjyZm5kwkZ6k4kcU&slide=id.gecf1893c21_0_86#slide=id.gecf1893c21_0_86
+  - 12 法則: https://www.youtube.com/playlist?list=PL-bOh8btec4CXd2ya1NmSKpi92U_l6ZJd
+  - GDC LOL: https://www.youtube.com/watch?v=-L2JvngkkWw
+  - LOL: https://nexus.leagueoflegends.com/wp-content/uploads/2017/10/VFX_Styleguide_final_public_hidpjqwx7lqyx0pjj3ss.pdf
 
 ## Material
 
