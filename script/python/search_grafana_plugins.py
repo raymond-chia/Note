@@ -173,6 +173,7 @@ def main():
         "--params",
         nargs="+",
         type=parse_key_value,
+        required=True,
         help="""
 Key-value pairs in the format key=value
 Valid key=value pairs:
@@ -257,9 +258,9 @@ Valid key=value pairs:
                     [
                         title,
                         folder,
-                        dashboard_url,
                         ", ".join(used_plugins),
                         ", ".join(used_datasources),
+                        dashboard_url,
                     ]
                 )
         except Exception as e:
@@ -268,7 +269,7 @@ Valid key=value pairs:
     # Display results
     if results:
         print("\nDashboards using specified plugins:")
-        headers = ["Dashboard", "Folder", "URL", "Plugins Used", "Datasources Used"]
+        headers = ["Dashboard", "Folder", "Plugins Used", "Datasources Used", "URL"]
         print(tabulate(results, headers=headers, tablefmt="grid"))
     else:
         print("\nNo dashboards found using the specified plugins.")

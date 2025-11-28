@@ -23,8 +23,8 @@ services:
     ports:
       - "6379:6379"
     container_name: redis7.2
-  test:
-    image: ""
-    command: bash
-    stdin_open: true
-    tty: true
+  # test:
+  #   image: ""
+  #   command: bash
+  #   stdin_open: true
+  #   tty: true

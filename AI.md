@@ -13,6 +13,8 @@
   - 降低某些用字的機率
     - 根據之前用字, 決定下一個要抑制哪些字的機率
     - 如果沒有其他適合的字, 還是可能用被抑制的字
+  - Google synthid
+    - 用於文字、圖片 (影片)、聲音
 - https://beta.character.ai
 - Distilling Step-by-Step https://www.ithome.com.tw/news/158902
   - 小型專用模型有兩種訓練方式, 分別是微調 ( Fine-tuning ) 和蒸餾 ( Distillation )
@@ -61,7 +63,7 @@
 | E    | 範例     | 提供期望結果或回應的具體範例。這個組件對於指導 LLM 朝向預期的格式、風格或內容的回應是無價的                         |
 | C    | 用戶內容 | 用戶提供的數據，LLM 應在其回應中使用或引用                                                                          |
 
-#### Provider
+#### Provider/Model
 
 ##### AWS Bedrock
 
@@ -78,14 +80,23 @@
 
 ##### Google
 
+###### Gemini
+
 - key: https://aistudio.google.com/app/apikey
 - model list
   - https://ai.google.dev/gemini-api/docs/models/gemini
   - https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models
 
+###### Vertex
+
+- 1. 到 Model Garden 搜尋 model
+  1. enable model
+  1. 在 pick one region 處取得可用的位置
+  1. 給予 service account 權限: aiplatform.endpoints.predict. 例如 role `Vertex AI Platform Express User`
+
 ##### Claude
 
-- 擅長寫程式 ??
+- 擅長寫程式
 
 ##### GPT
 
@@ -113,6 +124,8 @@
     - 只提供: 問題, 答案, 要 AI 自己訓練出 chain of thought
       - AI 學會自問自答
 
+##### Grok
+
 #### Vector / Embedding
 
 - https://www.youtube.com/watch?v=gQddtTdmG_8
@@ -127,6 +140,10 @@
 - 調整 vectoring, 將 image 與字串對應到接近的 vector
   - https://www.youtube.com/watch?v=KcSXcpluDe4
   - 一次練一個 batch. 逼近相符圖文的 vectors, 遠離不符圖文的 vectors
+
+##### DB
+
+- S3 vector 比其他 AWS vector db 產品便宜
 
 #### Retrieval Augmented Generation (RAG)
 
@@ -231,6 +248,7 @@ Search for the text: "x-onbehalf-extension-id"
 
 ###### RAG
 
+- 概念: https://python.langchain.com/docs/concepts/rag
 - 歷史記錄: https://python.langchain.com/v0.1/docs/use_cases/chatbots/retrieval/#query-transformation
 - 不使用 built-in function: https://python.langchain.com/v0.2/docs/tutorials/rag/#customizing-the-prompt
 
@@ -285,12 +303,54 @@ def insert_image(x):
 
 - OpenRouter
 - LiteLLM
+  - 內建的各個供應商價目表: https://github.com/BerriAI/litellm/blob/v1.72.2-stable/model_prices_and_context_window.json
+
+##### MCP
+
+- 給 AI 的 API
+- 範例: https://github.com/modelcontextprotocol/servers
+- https://github.com/modelcontextprotocol/python-sdk 或 https://github.com/jlowin/fastmcp
+  - https://github.com/jlowin/fastmcp 文件比較好
+- 範例 server
+  ```python
+  from fastmcp import FastMCP
+  from fastapi import FastAPI
+  mcp = FastMCP("LLM-MCP")
+  @mcp.tool
+  def echo_tool(message: str) -> str:
+      return f"something: {message}"
+  mcp_app = mcp.http_app(path="/")
+  app = FastAPI(lifespan=mcp_app.lifespan)
+  app.mount("/", mcp_app)
+  ```
+  搭配 `roo code` client
+  ```json
+  {
+    "mcpServers": {
+      "doc": {
+        "type": "streamable-http",
+        "url": "http://localhost:8000",
+        "alwaysAllow": ["echo_tool"],
+        "disabled": false
+      }
+    }
+  }
+  ```
+- claude code 不支援 nested object parameters 2025-10-02
+  - 如果只有一個欄位 query, `query: str = Body(..., embed=True)` 可以避免 fastapi 當作 query string, 又能滿足 claude code mcp
 
 #### 雜項
 
 - https://chatgpt.com/gpts
 - [annotation reply](https://docs.dify.ai/guides/biao-zhu/annotation-reply): 人工修改某種問題的回答
 - [NotebookLM](https://notebooklm.google.com): 整理上傳的檔案, 並提供問答 (rag ??)
+- - temperature: 調整整個機率分佈的形狀. 0.0-2.0
+    - 0.0 代表完全確定性（幾乎只會選擇機率最高的詞），
+    - 1.0 為標準隨機性，
+    - `>` 1.0 會讓生成內容更隨機、更有創意，但也可能更不穩定。
+  - top_p: 根據累積機率直接截斷候選詞集合. 0.0-1.0
+    - 1.0 代表不做截斷（等同於不啟用 top_p），
+    - 越接近 0.0，生成內容越保守。
 
 ## GAN
 
@@ -310,6 +370,7 @@ def insert_image(x):
     - https://github.com/ltdrdata/ComfyUI-Manager
     - 用於安裝 comfy ui 相關功能
     - 也是用 --listen 讓外界連
+    - docker 版本 ?? https://replicate.com/fofr/any-comfyui-workflow
   - https://ai.dawnmark.cn/
   - 直接用預設模型 + lora
 - Stable Zero123
@@ -366,6 +427,7 @@ def insert_image(x):
   - 可以產生連續的圖？
 - inpaint
   - 截圖, inpaint, 合併回原本的圖片. 這樣效果或許比較好？
+- 總共有 8 層, 最外面 2 層大, 中間 6 層小. 中間某幾層影響形狀, 某幾層影響風格/顏色
 
 ##### ControlNet
 
@@ -462,13 +524,29 @@ def insert_image(x):
 - 有多種 azure studio
   - azure ai studio
   - azure openai studio
-- host fine tuned model 會按時收費
+
+#### 建立
+
+- Resource Group: https://portal.azure.com/#create/Microsoft.ResourceGroup
+- AI Foundry
+  - OpenAI 的 models 選擇 Azure OpenAI
+  - 其他選擇 Hubs + Project
+  - https://portal.azure.com/#view/Microsoft_Azure_ProjectOxford/CognitiveServicesHub/~/AIHubs
+  - ai 能部署的區域: https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models
+- 管理 key: OpenAI service > Resource Management > Keys and Endpoint
+
+#### RAG
+
 - rag 範例 https://github.com/langchain-ai/langchain/blob/d64bd32b20e359c1c4524a839b343302ed5a6f04/templates/rag-azure-search/rag_azure_search/chain.py
   - 搭配[RAG 的範例](<#Retrieval-Augmented-Generation-(RAG)>)
   - https://learn.microsoft.com/zh-tw/azure/ai-services/openai/concepts/use-your-data ??
   - https://learn.microsoft.com/zh-tw/azure/ai-services/openai/use-your-data-quickstart ??
   - web app 是設計面向一般使用者 ??
     - https://learn.microsoft.com/en-us/azure/ai-studio/tutorials/deploy-chat-web-app ??
+
+#### 花費
+
+- host fine tuned model 會按時收費
 - 花費警報: Resource group (type) -> Cost Management -> Budgets
 - 用量: Azure OpenAI (type) -> Monitoring -> Metrics
 
@@ -482,8 +560,9 @@ def insert_image(x):
 
 #### Agent Builder
 
-- 如果要用來當作 vector store, 需要使用 google.cloud.discoveryengine_v1alpha @ 2024/11
-  - langchain VertexAISearchRetriever 在用 beta
+- 如果要用來當作 vector store
+  - 可能會花到 2 秒多 @ 2025/9
+  - langchain VertexAISearchRetriever 在用 beta @ 2024/11
   - [範例](https://github.com/GoogleCloudPlatform/generative-ai/blob/d2d888ba3767af893c4fadc1446c32a1c3a59826/search/retrieval-augmented-generation/examples/question_answering.ipynb)
 
 ### Nvidia

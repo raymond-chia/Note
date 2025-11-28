@@ -22,3 +22,6 @@ kubectl get pods -o wide | grep -v NODE | awk '{print $7}' | cut -d "-" -f 8 | s
 # 檢查 image
 # https://kubernetes.io/docs/tasks/access-application-cluster/list-all-running-container-images/
 kubectl get pods --all-namespaces -o jsonpath='{range .items[*]}{"\n"}{.metadata.name}{":\t"}{range .spec.containers[*]}{.image}{", "}{end}{end}'
+
+# 尋找 pod uid
+kubectl get pods --all-namespaces -o custom-columns=NAMESPACE:.metadata.namespace,NAME:.metadata.name,UID:.metadata.uid

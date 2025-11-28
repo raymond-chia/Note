@@ -26,6 +26,7 @@
 - Quad Tree
   - efficiently store data of points on a two-dimensional space
   - 優化碰撞檢測
+- Elo rating: 評估競技遊戲的玩家，並安排對手
 
 ## Animation
 
@@ -59,6 +60,13 @@
 ### CLI
 
 - https://docs.aws.amazon.com/cli/latest/reference/s3/
+
+## Azure
+
+- 先在 Portal 建立 resource group
+- AI Foundry 建立
+- 到 Models + endpoints 部署 ai model
+- 可以在 Portal > Resource Group > Azure AI Foundry > Resource Management > Keys and Endpoint 管理 api key
 
 ## Browser
 
@@ -239,6 +247,14 @@
 - 查詢誰有指定資料庫權限 `SELECT datacl FROM pg_database WHERE datname = '資料庫名稱';`
 - 查詢權限繼承 `\du`
 - 切換 `\c 資料庫名稱 使用者名稱`
+- `\x` toggle `Expanded display`
+
+##### 效能
+
+- 每次建立連線會開一個 process
+- PgBouncer
+  - 在應用程式跟 SQL 中間
+  - 充當 connection pool
 
 #### SQLite
 
@@ -259,7 +275,25 @@
 
 ### Install docker on mac
 
+#### Colima
+
+- 開源
+- 自動掛 $HOME
+- To start colima now and restart at login:  
+  brew services start colima  
+  Or, if you don't want/need a background service you can just run:  
+  /usr/local/opt/colima/bin/colima start -f
+- brew install docker-buildx
+
+#### Podman
+
+- red hat
+- 自動掛 $HOME
+
+#### Minikube
+
 - https://dhwaneetbhatt.com/blog/run-docker-without-docker-desktop-on-macos/
+- 不會自動掛 $HOME, 而且設定比較麻煩
 
 ```bash
 # Install hyperkit and minikube
@@ -324,6 +358,7 @@ minikube mount {source directory}:{target directory}
 - --mount
   - `RUN --mount=type=cache,target=/app` 臨時掛載 cache
   - `RUN --mount=type=secret,id=DOTENV_LOCAL,dst=.env` 臨時掛載 secret, DOTENV_LOCAL 是標示符
+- https://github.com/raymond-chia/Note/blob/main/script/python/docker-compose.yaml 搭配 `docker network create {network name}`
 
 ### Docker in Docker
 
@@ -357,6 +392,7 @@ strace $command_to_run_program # 執行目標程式, 查看錯誤
   - 設定 docker proxy: https://docs.docker.com/network/proxy/#set-proxy-using-the-cli
   - 取得 mitm cert: https://docs.mitmproxy.org/stable/concepts-certificates/#the-mitmproxy-certificate-authority
   - 設定 crt: https://askubuntu.com/questions/73287/how-do-i-install-a-root-certificate/377570
+- `docker login` 遇到 `connect: no route to host` 需要清理 docker networks
 
 ### Mirror
 
@@ -436,15 +472,13 @@ b: *a
 
 - autocomplete
   - mac: https://gist.github.com/romansavrulin/41e55fba693b4025ed693559083bc3a0
-- git 技巧
-  - https://www.youtube.com/watch?v=aolI_Rz0ZqY&t=385s
-    - 某個資料夾下都用某種 git config (user + email 之類的)
-    - `git diff --word-diff`
-    - `git reflog`: 查看 git 操作記錄. 搭配 git reset 可以拯救錯誤 git 操作
-    - `git config --global rerere.enabled true`: merge conflict 手動修一次. 之後自動修
-    - `git maintenance start`: [repository data](https://git-scm.com/docs/git-maintenance)
-    - 處理大型 repo 的手段
-    - ...
+- https://www.youtube.com/watch?v=aolI_Rz0ZqY&t=385s
+  - 某個資料夾下都用某種 git config (user + email 之類的)
+  - `git diff --word-diff`
+  - `git reflog`: 查看 git 操作記錄. 搭配 git reset 可以拯救錯誤 git 操作
+  - 處理大型 repo 的手段
+  - ...
+- sparse checkout + partial clone 來處理大型 repo
 - https://andrewlock.net/working-with-stacked-branches-in-git-is-easier-with-update-refs/#enabling-update-refs-by-default
   - 一次更新所有相關的 branches
   - add the following to your .gitconfig file:
@@ -489,7 +523,6 @@ b: *a
 
 ### Gitlab
 
-- table of contents: https://docs.gitlab.com/ee/user/markdown.html#table-of-contents
 - Add ssh key to gitlab 可以參考 github
 - 自動管理 issue: https://gitlab.com/gitlab-org/ruby/gems/gitlab-triage
 - CI_REGISTRY_IMAGE 是空值
@@ -499,9 +532,32 @@ b: *a
   - 後續步驟用 `needs` 指定是處理哪個 matrix 項目: https://docs.gitlab.com/ee/ci/yaml/#needsparallelmatrix
 - Job token permissions 設定跨專案權限
 
+#### Pipeline
+
+- 在 gitlab pipeline ui 加上參數註解與預設值: https://docs.gitlab.com/ci/pipelines/#prefill-variables-in-manual-pipelines
+- rules:variables 不會傳到 downstream pipeline ??
+
+#### Workload Identity Federation
+
+- 用短期 token 在 gitlab, gcp 之間溝通
+  - https://cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines#configure-pipeline
+  - aws, azure 應該也有支援
+
+#### 特殊 Markdown 指令
+
+- table of contents: https://docs.gitlab.com/ee/user/markdown.html#table-of-contents
+- 文字上色
+  ```markdown
+  $`\textcolor{red}{\text{your text}}`$
+  ```
+
 ## Google
 
 - 服務狀態: https://status.cloud.google.com
+
+### AI
+
+- model garden
 
 ### Bigquery
 
@@ -545,6 +601,15 @@ b: *a
 - https://developer.android.com/google/play/billing/security
   - https://developers.google.com/android-publisher/api-ref/rest/v3/purchases.products/get 需要權限 `financial report`
 - 請先設定權限, 再建立 product https://stackoverflow.com/a/60691844
+
+### Google Sheet
+
+- Q: 資料直接貼到 Google Sheet 時，所有資料會擠在同一 column  
+  A: 複製原始資料
+  在 Google Sheet 選擇一個起始儲存格
+  點選「資料」→「分割文字成欄」（Data → Split text to columns）
+  在分隔符號選擇「逗號」（Comma）
+  這樣每一行就會自動分成多欄，不會擠在一起。
 
 ### 畫架構
 
@@ -615,11 +680,18 @@ b: *a
   - 清掉特殊符號: `${VAR//[ $'\001'-$'\037']}`
 - 在 bash 中使用管道 (pipe) 時，每個部分都是在子 shell 中執行的。所以在 while 迴圈中增加的 total 和 distribution 變數只存在於子 shell 中，無法傳回主 shell。
   - 使用 process substitution `< <(command)` 取代管道 `|`
+- 強制從終端機讀取輸入，不會被 pipe 或子 shell 影響  
+  `read -r < /dev/tty`
 
 ### C#
 
 - NuGet maintains a reference list of packages used in a project and the ability to restore and update those packages from that list
 - ProtectedMemory 對記憶體加密
+
+### Java
+
+- 用 maven build 的時候, pom.xml 標明 JDK 版本
+- 如果用傳統方式上傳 GAE: appengine-web.xml ??
 
 ### Golang
 
@@ -772,6 +844,30 @@ import app1.package.tool
   - 有些小版號也是 breaking change ... chromadb@0.5.3 -> chromadb@0.5.4
 - 指定版本: poetry add chromadb@0.5.3
 
+##### UV
+
+- 避免建立 venv: `export UV_PROJECT_ENVIRONMENT=/usr/local`
+- 修改 toml: `uv add ${想要安裝的套件名稱}`
+- 實際安裝: `uv sync --no-install-project`
+
+#### Gunicorn
+
+- 如何把參數傳到 gunicorn 管理的 app
+  - https://github.com/benoitc/gunicorn/issues/135
+    ```py
+    def load_app(cfg_file):
+        cfg = load_app_config(cfg_file)
+        return my_app(cfg)
+    ```
+    ```bash
+    $ gunicorn 'webapp:load_app("/path/to/my_config.ini")'
+    ```
+- 結合 uvicorn
+  - `gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app -b 0.0.0.0:8000`
+  - 比較:
+    - Gunicorn 屬於 WSGI 伺服器, 主要優勢在於多進程管理
+    - Uvicorn 屬於 ASGI 伺服器, 專為非同步 Python Web 框架設計
+
 #### FastAPI
 
 - 自動產生 OpenAPI
@@ -800,6 +896,11 @@ import app1.package.tool
     2. 拿玩家的 unique id across apps: https://developers.facebook.com/docs/facebook-login/limited-login/faq/#faq_2886507154928804
 
 ## Network
+
+### 查詢自身 ip
+
+- curl -4 ifconfig.me
+  - 查詢 ipv4
 
 ### Connection reset by peer
 
@@ -879,6 +980,8 @@ import app1.package.tool
 
 - Mac 傳輸檔案到 Android: https://www.android.com/filetransfer/
   - 遇到問題可以試試拔線重插
+- Google Play 會阻止下載 Android SDK 太舊的軟體
+  - 所以就算沒有要透過 Google Play 販售軟體, 還是需要升級 Android SDK
 
 #### Samsung
 
@@ -926,6 +1029,7 @@ import app1.package.tool
   - 可能只需要從 `下載項目` 挪到其他位置就好
 - spam cursor over lines: command + alt + arrow
 - back: ctrl + -
+- 還原意外關閉的頁面: cmd + shift + t
 
 #### Debian
 
@@ -963,6 +1067,11 @@ import app1.package.tool
     - https://gist.github.com/snail007/cec5d24f0f4ef0f850fa0b6120bed1cb
 - 設定觸發時間 https://stackoverflow.com/questions/584770/how-would-i-get-a-cron-job-to-run-every-30-minutes
 
+##### 防火牆
+
+- sudo ufw status
+- sudo ufw allow 8080
+
 ##### Debug
 
 - Left Shift, F12 可以進入特殊模式 (可能要長按或連按)
@@ -972,6 +1081,19 @@ import app1.package.tool
   - `journalctl -u {service-name}` 可以看特定 service 的 log
     - `systemctl status {service-name}` 只能看到部份 log
     - https://unix.stackexchange.com/questions/225401/how-to-see-full-log-from-systemctl-status-service
+
+## Procedural Generation
+
+- Cellular Automata
+  - 適用於障礙物分佈, 地下城
+- Perlin Noise
+- Fractal Brownian Motion
+  - 套用多次 Perlin Noise ??
+  - vs 單一 Perlin Noise
+    - 更多細節
+    - 使用 Fractal Brownian Motion 生成地形的基本結構，然後在細節層面使用 Perlin Noise 添加紋理變化 ??
+- Voronoi Diagram
+  - 國界 ??
 
 ## Probabilistic data structure
 
@@ -1056,6 +1178,11 @@ import app1.package.tool
 ### Nginx
 
 - 可以根據設定檔控制回傳內容
+
+## Slack
+
+- 使用 [slack bolt](https://tools.slack.dev/bolt-python/building-an-app) 來建立 app
+  - 可以監聽的事件表: https://docs.slack.dev/reference/events
 
 ## Store
 
