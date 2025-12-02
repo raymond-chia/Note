@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   app:
-    image: python:3.13
+    image: python:3.14-slim
     container_name: python-app
     networks:
       - app-network
@@ -12,10 +12,10 @@ services:
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
+      - UV_PROJECT_ENVIRONMENT=/usr/local
     command: >
-      bash -c "pip install poetry &&
-        poetry config virtualenvs.create false &&
-        poetry install &&
+      bash -c "pip install uv &&
+        uv sync &&
         tail -f /dev/null"
 
 # 需要下指令: docker network create app-network

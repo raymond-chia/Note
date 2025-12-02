@@ -1,4 +1,5 @@
 from openai import OpenAI
+from anthropic import AnthropicVertex
 from dotenv import load_dotenv
 import base64
 import os
@@ -51,6 +52,12 @@ def init_gemini_client(
     )
 
 
+def init_anthropic_client(
+    project_id: str, location: str, impersonated_email: str | None = None
+) -> AnthropicVertex:
+    return AnthropicVertex(region=location, project_id=project_id)
+
+
 def init_openai_client(url: str, api_key: str) -> OpenAI:
     return OpenAI(base_url=url, api_key=api_key)
 
@@ -66,8 +73,24 @@ def chat(model: str):
                 "content": "你好",
             },
         ],
+        max_completion_tokens=1000,
     )
     print(response.choices[0].message.content)
+
+
+def chat_vertex_claude(model: str):
+    print(f"Model 名稱: {model}")
+    message = client.messages.create(
+        model=model,
+        messages=[
+            {
+                "role": "user",
+                "content": "你好",
+            },
+        ],
+        max_tokens=1000,
+    )
+    print(message.content[0].text)
 
 
 def edit_image(model: str, prompt: str, input_path: str):
@@ -125,3 +148,10 @@ load_dotenv()
 # )
 # chat("google/gemini-2.5-flash")
 # chat("openai/gpt-oss-120b-maas")
+
+
+# client = init_anthropic_client(
+#     os.environ.get("PROJECT_ID", ""),
+#     os.environ.get("LOCATION", "global"),
+# )
+# chat_vertex_claude("claude-haiku-4-5")
