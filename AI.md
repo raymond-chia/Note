@@ -134,6 +134,7 @@
     - vector 因為是數字, 比較好量化評分 LLM 回應, 比較好訓練
   - 訓練如何預測下個字的時候, 同時會訓練 vector 轉換器 ??
   - 可以加減 vector, 得到另外一個字: `king - man + woman = queen`
+- 用 cosine similarity 比較 ??
 
 ##### Clip
 
@@ -370,7 +371,9 @@ def insert_image(x):
     - https://github.com/ltdrdata/ComfyUI-Manager
     - 用於安裝 comfy ui 相關功能
     - 也是用 --listen 讓外界連
-    - docker 版本 ?? https://replicate.com/fofr/any-comfyui-workflow
+    - docker 版本 ??
+      - https://replicate.com/fofr/any-comfyui-workflow
+      - runpod 版本
   - https://ai.dawnmark.cn/
   - 直接用預設模型 + lora
 - Stable Zero123

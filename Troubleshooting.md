@@ -848,7 +848,7 @@ import app1.package.tool
 
 - 避免建立 venv: `export UV_PROJECT_ENVIRONMENT=/usr/local`
 - 修改 toml: `uv add ${想要安裝的套件名稱}`
-- 實際安裝: `uv sync --no-install-project`
+- 實際安裝: `uv sync --frozen`
 
 #### Gunicorn
 
@@ -1264,6 +1264,7 @@ import app1.package.tool
   - n 下一個
   - shift + n 上一個
 - u 代表 undo
+- 貼上之前使用 `:set paste`
 
 ## Xcode
 
