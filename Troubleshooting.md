@@ -360,6 +360,10 @@ minikube mount {source directory}:{target directory}
   - `RUN --mount=type=secret,id=DOTENV_LOCAL,dst=.env` 臨時掛載 secret, DOTENV_LOCAL 是標示符
 - https://github.com/raymond-chia/Note/blob/main/script/python/docker-compose.yaml 搭配 `docker network create {network name}`
 
+### Compose
+
+- `dns` 可以指定使用的 dns
+
 ### Docker in Docker
 
 - https://hub.docker.com/_/docker
@@ -563,6 +567,55 @@ b: *a
 
 - [data streamed to an ingestion time partitioned table might be delayed](https://cloud.google.com/bigquery/docs/streaming-data-into-bigquery#dataavailability)
   - up to 90 mins
+- 只能 export 到 cloud storage
+- Dataset 盡量不要高達 50,000 tables, 會有效能問題
+- Quota (除了 query 之外都是免費)
+  - Load data into tables
+  - Export data from tables
+  - Query table data
+  - Copy tables
+- 查詢費用, 儲存費用
+  - 查詢費用有 on demand / capacity 兩種
+    - on demand 按照掃描多少資料來計費
+      - 每個月前 1 TB 免費
+      - 選越多 colume 花費越高
+      - cached 回傳的資料不收費
+      - cancel 如果沒有真正中斷搜尋, 還是會收全額費用
+      - partition 跟 cluster 可以降低查詢量 -> 降低查詢花費
+    - capacity 就是包 cpu, 但是可以有 commitment 優惠
+  - 儲存費用有 active, long-term
+    - long-term 是 90 天沒動
+    - 每個月前 10 GB 免費
+- Query
+  - 三種: interactive, batch, continuous
+  - 可以設定
+    - 輸出到暫存還是永久 table, 優先度, 是否使用 cached query result, timeout, session mode, 加密機制, query 上限, dialect of SQL, location, rservation (應該是 capacity query)
+    - Optional job creation 可以節省小工作的時間 (因為可能省掉建立 job 的工)
+    - Jobs explorer 來檢查 query job 的現況
+    - Dry run 可以預估查詢費用
+      - 不適用於 External tables
+- Query SQL
+  - 可以把多個 SQL 塞在一個 request
+  - [可以改資料以外的部分, 比如 access policies](https://docs.cloud.google.com/bigquery/docs/introduction-sql)
+- 三種: Standard BigQuery tables, External tables, Views
+
+#### Standard BigQuery tables
+
+- contain structured data and are stored in BigQuery storage in a columnar format
+- or store references to unstructured data in standard tables by using struct columns that adhere to the ObjectRef format
+- 3 types
+  - table
+  - table clone (只保存與 table 的差異)
+  - table snapshot (只用來還原) [(只保存跟現在的 diff)](https://docs.cloud.google.com/bigquery/docs/table-snapshots-intro#storage_costs)
+
+#### External tables
+
+- 只要不在 big query 就算
+
+#### Views
+
+- Views: query 時產生的 logical tables
+- Materialized views: precomputed views
 
 ### Cloud Platform
 
@@ -848,7 +901,7 @@ import app1.package.tool
 
 - 避免建立 venv: `export UV_PROJECT_ENVIRONMENT=/usr/local`
 - 修改 toml: `uv add ${想要安裝的套件名稱}`
-- 實際安裝: `uv sync --no-install-project`
+- 實際安裝: `uv sync --frozen`
 
 #### Gunicorn
 
@@ -1264,6 +1317,7 @@ import app1.package.tool
   - n 下一個
   - shift + n 上一個
 - u 代表 undo
+- 貼上之前使用 `:set paste`
 
 ## Xcode
 

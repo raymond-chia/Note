@@ -1298,6 +1298,7 @@ spec:
 
 - 通常放在 `/var/log`
 - mongo 可能放在 `/data`
+- 確認 startup script 是否跑完: `gcloud compute instances get-serial-port-output`
 
 ### Grafana
 
