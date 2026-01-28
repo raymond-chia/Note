@@ -67,6 +67,19 @@
 - The certificate signature is verified using the public key in the issuer's certificate
   - https://www.ibm.com/docs/en/ztpf/1.1.0.15?topic=ca-certificate-chain-verification
 
+### 指令
+
+- `openssl x509 -in ${.crt 檔案} -noout -text` 查詢細節
+  - `Issuer`: 發行單位名稱
+  - `Authority Information Access`
+    - `CA Issuers`: 發行單位 CA 位置。如果找不到且不是 root CA 可能是古早 CA
+    - `OCSP` 檢查撤銷
+- `curl -o intermediate.crt ${Authority Information Access}` 下載 issuer 的 crt
+  - `curl -o intermediate.crt $(openssl x509 -in $憑證路徑 -noout -text | grep "CA Issuers - URI" | sed 's/.*URI://')`
+- `openssl x509 -inform DER -in intermediate.crt -out intermediate.crt` 轉換 crt 格式
+- `openssl x509 -in crt-intermediate.crt -noout -subject -issuer | sed 's/.*CN=//' | uniq -c` 只有一行輸出就是 root CA
+- `openssl verify -untrusted ${intermediate crt} -untrusted ${其他中間憑證, 順序沒差} ${leaf crt}` 實驗驗證
+
 ## Database
 
 - Point in time recovery (以 MongoDB 為例)
@@ -89,6 +102,16 @@
 - 存目前的設定到 redis.conf
   - `redis-cli config rewrite`
   - https://redis.io/docs/latest/commands/config-rewrite/
+- diskless rdb transfer 有 master 端跟 slave 端設定
+  - 如果 slave 端沒開啟 diskless，會在載入新資料之前 flush
+
+#### Debug
+
+- redis 使用 jemalloc，所以不會即時還 memory 給 os
+- /var/log/redis/server.log
+- `INFO MEMORY` 檢查記憶體碎片化
+- `MEMORY STATS` 檢查記憶體碎片化；dict resize 情況
+- `CLIENT LIST` 檢查 replication buffer 用量
 
 #### node 異動
 
@@ -1298,6 +1321,7 @@ spec:
 
 - 通常放在 `/var/log`
 - mongo 可能放在 `/data`
+- 確認 startup script 是否跑完: `gcloud compute instances get-serial-port-output`
 
 ### Grafana
 
@@ -1512,11 +1536,12 @@ spec:
 - [string](https://developer.hashicorp.com/terraform/language/expressions/strings)
   - jsonencode, yamlencode
   - heredoc
-    ```terraform
-    <<-EOT
-    ...content...
-    EOT
-    ```
+    - 範例
+      ```terraform
+      <<-EOT
+      ...content...
+      EOT
+      ```
     - EOT 可以換成任意字 (EOT = end of text)
     - `<<` 不會 trim 每一行的 leading space
     - `<<-` 會 trim 每一行的 leading space
