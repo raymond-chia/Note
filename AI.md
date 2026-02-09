@@ -86,6 +86,7 @@
 - model list
   - https://ai.google.dev/gemini-api/docs/models/gemini
   - https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models
+- GeminiVoyager: 優化 Gemini 網頁版的 UX
 
 ###### Vertex
 
@@ -104,14 +105,16 @@
   - 數量越多效果越好
   - 模型越大, few shot 效果越好
 
-###### Copilot 範例
+##### Copilot
 
 - Bing 的 copilot 不適合產生程式碼 [2023/2](https://www.youtube.com/watch?v=8BBzaiAbxp4)
   - 只適合搜尋
   - 改用 OpenAI 或 VS Code
-- write a javascript method that uses 某種方法 to 達到某種目的
-- translate the javascript code above into R
-- analyze this error message: 錯誤內容
+
+##### Perplexity
+
+- 免費
+- 使用其他模型搜尋
 
 ##### Deepseek
 
@@ -134,6 +137,7 @@
     - vector 因為是數字, 比較好量化評分 LLM 回應, 比較好訓練
   - 訓練如何預測下個字的時候, 同時會訓練 vector 轉換器 ??
   - 可以加減 vector, 得到另外一個字: `king - man + woman = queen`
+- 用 cosine similarity 比較 ??
 
 ##### Clip
 
@@ -339,6 +343,14 @@ def insert_image(x):
 - claude code 不支援 nested object parameters 2025-10-02
   - 如果只有一個欄位 query, `query: str = Body(..., embed=True)` 可以避免 fastapi 當作 query string, 又能滿足 claude code mcp
 
+###### Context7
+
+- 提供 vibe coding 查詢程式碼 api
+
+##### DeepWiki
+
+- 預先分析程式碼
+
 #### 雜項
 
 - https://chatgpt.com/gpts
@@ -370,7 +382,9 @@ def insert_image(x):
     - https://github.com/ltdrdata/ComfyUI-Manager
     - 用於安裝 comfy ui 相關功能
     - 也是用 --listen 讓外界連
-    - docker 版本 ?? https://replicate.com/fofr/any-comfyui-workflow
+    - docker 版本 ??
+      - https://replicate.com/fofr/any-comfyui-workflow
+      - runpod 版本
   - https://ai.dawnmark.cn/
   - 直接用預設模型 + lora
 - Stable Zero123
@@ -461,6 +475,9 @@ def insert_image(x):
 - 兩張圖產生中間動畫 https://x.com/tds_95514874/status/1693603992092524662?s=46&t=y26bJt9O7xPNkMWJx-w1og
 - LCM: 加速產圖
 - Create Consistent, Editable AI Characters & Backgrounds (ComfyUI): https://www.youtube.com/watch?v=849xBkgpF3E
+- 資料量太大, 難以讓 AI 知道前面有什麼圖片 -> 使用 encoder & decoder network 來壓縮圖片
+  - 類似 embedding
+  - [latent diffusion](https://www.youtube.com/watch?v=hJHfZKYUKMw)
 - source
   - https://www.youtube.com/@Aitrepreneur
   - https://mnya.tw/cc/word/category/ai-drawing
@@ -552,12 +569,6 @@ def insert_image(x):
 
 ### Google
 
-#### Gemini
-
-- key: https://aistudio.google.com/app/apikey
-- 適合搜尋
-- vs www.perplexity.ai ??
-
 #### Agent Builder
 
 - 如果要用來當作 vector store
@@ -581,6 +592,9 @@ def insert_image(x):
     - 回到 runway 修正影片
 - 拖拉圖片 https://generative-dynamics.github.io
 - 搭配 stable diffusion ? https://github.com/hotshotco/hotshot-xl
+- [用 stable diffusion 訓練的時候, 給一組連續圖, 每次練一組](https://www.youtube.com/watch?v=hJHfZKYUKMw)
+  - 訓練時, 每一張圖片的 noise 都要不一樣
+  - latent diffusion 還是資料量太大 -> 把空間切小, 但是時間連續 patch (圖片不同地方的連續圖)
 - 補幀數 (frame): Flowframes
 - Luma AI
   - 參數下 live2d ??
