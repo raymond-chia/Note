@@ -67,6 +67,19 @@
 - The certificate signature is verified using the public key in the issuer's certificate
   - https://www.ibm.com/docs/en/ztpf/1.1.0.15?topic=ca-certificate-chain-verification
 
+### 指令
+
+- `openssl x509 -in ${.crt 檔案} -noout -text` 查詢細節
+  - `Issuer`: 發行單位名稱
+  - `Authority Information Access`
+    - `CA Issuers`: 發行單位 CA 位置。如果找不到且不是 root CA 可能是古早 CA
+    - `OCSP` 檢查撤銷
+- `curl -o intermediate.crt ${Authority Information Access}` 下載 issuer 的 crt
+  - `curl -o intermediate.crt $(openssl x509 -in $憑證路徑 -noout -text | grep "CA Issuers - URI" | sed 's/.*URI://')`
+- `openssl x509 -inform DER -in intermediate.crt -out intermediate.crt` 轉換 crt 格式
+- `openssl x509 -in crt-intermediate.crt -noout -subject -issuer | sed 's/.*CN=//' | uniq -c` 只有一行輸出就是 root CA
+- `openssl verify -untrusted ${intermediate crt} -untrusted ${其他中間憑證, 順序沒差} ${leaf crt}` 實驗驗證
+
 ## Database
 
 - Point in time recovery (以 MongoDB 為例)
@@ -89,6 +102,16 @@
 - 存目前的設定到 redis.conf
   - `redis-cli config rewrite`
   - https://redis.io/docs/latest/commands/config-rewrite/
+- diskless rdb transfer 有 master 端跟 slave 端設定
+  - 如果 slave 端沒開啟 diskless，會在載入新資料之前 flush
+
+#### Debug
+
+- redis 使用 jemalloc，所以不會即時還 memory 給 os
+- /var/log/redis/server.log
+- `INFO MEMORY` 檢查記憶體碎片化
+- `MEMORY STATS` 檢查記憶體碎片化；dict resize 情況
+- `CLIENT LIST` 檢查 replication buffer 用量
 
 #### node 異動
 
@@ -545,8 +568,26 @@
 
 - Cluster 開啟 Workload Identity
 - 需要設定權限 roles/iam.workloadIdentityUser
-- [spec.template.spec.serviceAccountName](https://cloud.google.com/run/docs/configuring/services/service-identity#yaml)
-  - 值是 kustomize yaml 裡面的 service account `kind` 的名稱
+- 必須步驟
+  1. KSA 的 iam.gke.io/gcp-service-account annotation 指向 GSA
+     ```yaml
+     apiVersion: v1
+     kind: ServiceAccount
+     metadata:
+       name: my-ksa
+       annotations:
+         iam.gke.io/gcp-service-account: my-gsa@my-project.iam.gserviceaccount.com
+     ```
+  2. Workload 使用該 KSA
+     - [spec.template.spec.serviceAccountName](https://cloud.google.com/run/docs/configuring/services/service-identity#yaml)
+     - 值是 kustomize yaml 裡面的 service account `kind` 的名稱
+  3. GSA 授權該 KSA 作為 workloadIdentityUser
+     ```sh
+     gcloud iam service-accounts add-iam-policy-binding \
+     my-gsa@my-project.iam.gserviceaccount.com \
+     --role roles/iam.workloadIdentityUser \
+     --member "serviceAccount:my-project.svc.id.goog[my-namespace/my-ksa]"
+     ```
 
 #### Log
 
@@ -701,6 +742,7 @@
     - terraform 建立 backend service 時, 需要包含 NEG 所有 region
     - 設定完 NEG 還要設定 load balancer
     - 修改 port 要重建 NEG
+      - 檢查是否需要重建 `kubectl get svcneg --all-namespaces -o custom-columns='NAMESPACE:.metadata.namespace,NAME:.metadata.name,DELETION:.metadata.deletionTimestamp' 2>&1 | grep -v '<none>'`
   - [GKE versions 1.18.18-gke.1200 可能會先建立所有 NEG ??](https://cloud.google.com/kubernetes-engine/docs/how-to/standalone-neg)
 - [步驟](https://cloud.google.com/load-balancing/docs/https#request-distribution)
   1. Maglev
@@ -1084,16 +1126,27 @@ spec:
     spec:
       nodeSelector:
         topology.kubernetes.io/zone: asia-east1-c
-      # 或
-      affinity:
-        nodeAffinity:
+```
+
+- 強迫分散 zone:
+
+```yaml
+- patch: |-
+    - op: add
+      path: /spec/template/spec/affinity
+      value:
+        podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                  - key: topology.kubernetes.io/zone
-                    operator: In
-                    values:
-                      - asia-east1-c
+          - labelSelector:
+              matchExpressions:
+              - key: component
+                operator: In
+                values:
+                - api
+            topologyKey: topology.kubernetes.io/zone
+  target:
+    kind: Deployment
+    labelSelector: component=api
 ```
 
 ### 其他功能
@@ -1298,6 +1351,7 @@ spec:
 
 - 通常放在 `/var/log`
 - mongo 可能放在 `/data`
+- 確認 startup script 是否跑完: `gcloud compute instances get-serial-port-output`
 
 ### Grafana
 
@@ -1512,11 +1566,12 @@ spec:
 - [string](https://developer.hashicorp.com/terraform/language/expressions/strings)
   - jsonencode, yamlencode
   - heredoc
-    ```terraform
-    <<-EOT
-    ...content...
-    EOT
-    ```
+    - 範例
+      ```terraform
+      <<-EOT
+      ...content...
+      EOT
+      ```
     - EOT 可以換成任意字 (EOT = end of text)
     - `<<` 不會 trim 每一行的 leading space
     - `<<-` 會 trim 每一行的 leading space

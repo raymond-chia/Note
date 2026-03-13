@@ -6,7 +6,7 @@
 - 先蒐集人類對文章的評價
   - 訓練能判斷文章好壞的 AI
   - 再訓練能產生文章的 AI
-  - 不像 gan 同時訓練？
+  - 不像 gan 同時訓練 ??
   - loop
 - 訓練的是人類喜歡的答案, 不一定是正確的答案
 - [限制 AI 用字, 以便偵測](https://www.youtube.com/watch?v=XZJc1p6RE78)
@@ -86,6 +86,7 @@
 - model list
   - https://ai.google.dev/gemini-api/docs/models/gemini
   - https://cloud.google.com/vertex-ai/generative-ai/docs/learn/models
+- GeminiVoyager: 優化 Gemini 網頁版的 UX
 
 ###### Vertex
 
@@ -97,6 +98,7 @@
 ##### Claude
 
 - 擅長寫程式
+- claude code 對話紀錄在 `~/.claude/projects`
 
 ##### GPT
 
@@ -104,14 +106,16 @@
   - 數量越多效果越好
   - 模型越大, few shot 效果越好
 
-###### Copilot 範例
+##### Copilot
 
 - Bing 的 copilot 不適合產生程式碼 [2023/2](https://www.youtube.com/watch?v=8BBzaiAbxp4)
   - 只適合搜尋
   - 改用 OpenAI 或 VS Code
-- write a javascript method that uses 某種方法 to 達到某種目的
-- translate the javascript code above into R
-- analyze this error message: 錯誤內容
+
+##### Perplexity
+
+- 免費
+- 使用其他模型搜尋
 
 ##### Deepseek
 
@@ -134,6 +138,7 @@
     - vector 因為是數字, 比較好量化評分 LLM 回應, 比較好訓練
   - 訓練如何預測下個字的時候, 同時會訓練 vector 轉換器 ??
   - 可以加減 vector, 得到另外一個字: `king - man + woman = queen`
+- 用 cosine similarity 比較 ??
 
 ##### Clip
 
@@ -339,6 +344,14 @@ def insert_image(x):
 - claude code 不支援 nested object parameters 2025-10-02
   - 如果只有一個欄位 query, `query: str = Body(..., embed=True)` 可以避免 fastapi 當作 query string, 又能滿足 claude code mcp
 
+###### Context7
+
+- 提供 vibe coding 查詢程式碼 api
+
+##### DeepWiki
+
+- 預先分析程式碼
+
 #### 雜項
 
 - https://chatgpt.com/gpts
@@ -370,7 +383,9 @@ def insert_image(x):
     - https://github.com/ltdrdata/ComfyUI-Manager
     - 用於安裝 comfy ui 相關功能
     - 也是用 --listen 讓外界連
-    - docker 版本 ?? https://replicate.com/fofr/any-comfyui-workflow
+    - docker 版本 ??
+      - https://replicate.com/fofr/any-comfyui-workflow
+      - runpod 版本
   - https://ai.dawnmark.cn/
   - 直接用預設模型 + lora
 - Stable Zero123
@@ -396,7 +411,7 @@ def insert_image(x):
 - https://www.youtube.com/watch?v=1CIpzeNxIhU
   - 每步驟加上一點雜訊, 多個步驟後整張圖都是雜訊
   - 訓練 denoise 的能力
-    - 給任意程度加雜訊的圖 (經過 x 步驟), 判斷加了哪些雜訊 (知道 x 或許比較好訓練？)
+    - 給任意程度加雜訊的圖 (經過 x 步驟), 判斷加了哪些雜訊 (知道 x 或許比較好訓練 ??)
   - 從完全雜訊 denoise 之後, 圖片多半還是糊的
     - 再加上雜訊 (達到步驟 10 變成步驟 9)
     - 重複進行
@@ -408,7 +423,7 @@ def insert_image(x):
   - `(prompt)` 代表 x 1.1
   - `[prompt]` 代表 / 1.1
   - `prompt: 1.1`
-  - `AND` 可以把 prompt 混到同一個目標上？
+  - `AND` 可以把 prompt 混到同一個目標上 ??
   - https://docs.google.com/spreadsheets/d/14Gg1kIGWdZGXyCC8AgYVT0lqI6IivLzZOdIT3QMWwVI/edit#gid=1760100829
   - https://docs.qq.com/doc/DWFdSTHJtQWRzYk9k
   - prompt demo: https://zele.st/NovelAI/
@@ -424,9 +439,9 @@ def insert_image(x):
   - 可以排列 step & sampler 組合 (或其他組合)
   - x & y 內部各自用 `,` 分隔
 - tilling
-  - 可以產生連續的圖？
+  - 可以產生連續的圖 ??
 - inpaint
-  - 截圖, inpaint, 合併回原本的圖片. 這樣效果或許比較好？
+  - 截圖, inpaint, 合併回原本的圖片. 這樣效果或許比較好 ??
 - 總共有 8 層, 最外面 2 層大, 中間 6 層小. 中間某幾層影響形狀, 某幾層影響風格/顏色
 
 ##### ControlNet
@@ -461,6 +476,9 @@ def insert_image(x):
 - 兩張圖產生中間動畫 https://x.com/tds_95514874/status/1693603992092524662?s=46&t=y26bJt9O7xPNkMWJx-w1og
 - LCM: 加速產圖
 - Create Consistent, Editable AI Characters & Backgrounds (ComfyUI): https://www.youtube.com/watch?v=849xBkgpF3E
+- 資料量太大, 難以讓 AI 知道前面有什麼圖片 -> 使用 encoder & decoder network 來壓縮圖片
+  - 類似 embedding
+  - [latent diffusion](https://www.youtube.com/watch?v=hJHfZKYUKMw)
 - source
   - https://www.youtube.com/@Aitrepreneur
   - https://mnya.tw/cc/word/category/ai-drawing
@@ -484,6 +502,12 @@ def insert_image(x):
 
 ## Text to 3D
 
+- score distillation sampling
+  - https://www.youtube.com/watch?v=C1E500opYHA
+  - 直接用 stable diffusion 產生 2d, 接著用 Gaussian splatting 或 NeRF 從多個 2d 算出 3d
+  - Janus problem (因為每個面向的 stable diffusion 都以為自己才是正面)
+  - 一開始用多 noise, 然後後續的其他面向逐漸降低 noise
+    - 一開始會很糟, 但是慢慢變好 ??
 - Tripo3D
   - https://x.com/toyxyz3/status/1806932777386098715?s=46&t=y26bJt9O7xPNkMWJx-w1og
   - 面數較下面低
@@ -510,7 +534,8 @@ def insert_image(x):
 - https://github.com/GrandaddyShmax/audiocraft_plus ?
 - https://www.stableaudio.com/ ?
 - https://www.udio.com/blog/introducing-v1-5 ?
-- Suno AI
+- Suno / Udio
+- [Elevenlabs](#Voice)
 
 ## Platform
 
@@ -552,12 +577,6 @@ def insert_image(x):
 
 ### Google
 
-#### Gemini
-
-- key: https://aistudio.google.com/app/apikey
-- 適合搜尋
-- vs www.perplexity.ai ??
-
 #### Agent Builder
 
 - 如果要用來當作 vector store
@@ -581,6 +600,9 @@ def insert_image(x):
     - 回到 runway 修正影片
 - 拖拉圖片 https://generative-dynamics.github.io
 - 搭配 stable diffusion ? https://github.com/hotshotco/hotshot-xl
+- [用 stable diffusion 訓練的時候, 給一組連續圖, 每次練一組](https://www.youtube.com/watch?v=hJHfZKYUKMw)
+  - 訓練時, 每一張圖片的 noise 都要不一樣
+  - latent diffusion 還是資料量太大 -> 把空間切小, 但是時間連續 patch (圖片不同地方的連續圖)
 - 補幀數 (frame): Flowframes
 - Luma AI
   - 參數下 live2d ??
@@ -590,7 +612,7 @@ def insert_image(x):
 ## Voice
 
 - voice.ai ??
-- ElevenLabs ??
+- ElevenLabs (語音、音效、音樂、圖片、影片) ??
 - https://github.com/liujing04/Retrieval-based-Voice-Conversion-WebUI ??
 - https://www.youtube.com/watch?v=9lsSSPnF67Q ??
 - 文字轉聲音 + 影片 https://www.heygen.com
