@@ -1,6 +1,11 @@
 # 作業系統
 .DS_Store
 
+# openai codex
+.system
+
 # 環境變數 / 測試資料
 .env
 test-data
+gcloud-credential.json
+secret.json
