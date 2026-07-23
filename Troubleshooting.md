@@ -246,8 +246,15 @@
 - 要`避開`的項目: https://philbooth.me/blog/nine-ways-to-shoot-yourself-in-the-foot-with-postgresql
 - 查詢誰有指定資料庫權限 `SELECT datacl FROM pg_database WHERE datname = '資料庫名稱';`
 - 查詢權限繼承 `\du`
-- 切換 `\c 資料庫名稱 使用者名稱`
 - `\x` toggle `Expanded display`
+
+| 指令 | 意義             | 備注                                |
+| ---- | ---------------- | ----------------------------------- |
+| \l   | 列出 db          |                                     |
+| \c   | 切換 db          | `\c 資料庫名稱 使用者名稱`          |
+| \dt  | 列出 table       | 可以補上 regex 標明要查詢哪些 table |
+| \di  | 列出 table index | 可以補上 regex 標明要查詢哪些 table |
+| \d   | 列出 table 內容  | `\d table名稱`                      |
 
 ##### 效能
 
@@ -271,24 +278,124 @@
   - 減少 interface ... 偏向 functional ??
 - https://www.youtube.com/watch?v=yy8jQgmhbAU&t=1440s
 
+## Data 資料分析
+
+### 遊戲數據分析的事件遲到 (late-arriving events)
+
+- 事件實際發生時間，與最終回報 / 入庫時間可能相差數個月、甚至數年
+  - 原因：玩家長期離線、裝置沒網路、舊事件被快取在裝置端，等下次連線才補送
+  - 「最久可以多久」沒有絕對上限，實務上限由保留策略決定，例如：
+    - 客戶端：事件快取保留策略、app 重裝會清掉
+    - 傳輸層：SDK / pipeline 是否設有丟棄過舊事件的門檻
+- 有上限的例子：GA4 事件 timestamp 早於「送達 Google 伺服器」72 小時就無法正常處理
+  - 預設 (RELAXED) 會把 timestamp 強制改成 72 小時前；ENFORCE_RECOMMENDATIONS 則直接 reject
+  - https://developers.google.com/analytics/devguides/collection/protocol/ga4/reference
+- 沒有公布上限的例子：GameAnalytics (gameanalytics.com) 沒有公布延遲上限
+- 注意：這跟 BigQuery streaming ingestion 延遲 (~90 分鐘) 是完全不同層級的延遲
+
+### Medallion Architecture
+
+[用「金屬等級」表達資料成熟度](https://learn.microsoft.com/zh-tw/azure/databricks/lakehouse/medallion)
+
+- Bronze（原始層）
+  - 以原始格式包含並維護數據源的原始狀態。
+  - 做為單一事實來源，保留數據的精確度。
+  - 在銅層中執行最少量的資料驗證。
+- Silver（清洗層）
+  - 執行資料清理、重複資料刪除和正規化的位置
+- Gold（商業層）
+  - 由針對分析和報告量身打造的匯總數據所組成
+  - 符合商業規則和需求
+  - 已優化效能，以便在查詢及儀錶板中使用
+
+| bronze | silver | gold |
+| ------ | ------ | ---- |
+| 承接   | 加工   | 消費 |
+
+- silver 的重點是，統一處理每個 gold 都要做的邏輯
+  - 比如去重
+
+### ELT
+
+- Extract, load, transform
+
+#### Google
+
+| 服務                  | E   | L   | T   | 備註          |
+| --------------------- | --- | --- | --- | ------------- |
+| Dataflow              | v   | v   | v   |               |
+| Data Transfer Service | v   | v   |     | 需要 BigQuery |
+| Dataform              |     |     | v   | 需要 BigQuery |
+
+### 用 jq 處理大型 JSON（NDJSON streaming）
+
+問題：jq 預設會把**整個 JSON 讀進記憶體建成樹**。對數 GB 的單一 JSON，會吃光 RAM、卡死或被 OOM 殺掉。
+
+關鍵：把資料存成 **NDJSON**（一行一筆獨立 JSON，**不是**一個大 array），讓 jq 一行一行串流處理，記憶體恆定。
+
+|           | 單一大 JSON array          | NDJSON             |
+| --------- | -------------------------- | ------------------ |
+| jq 怎麼讀 | 讀完整檔、建完整棵樹才能動 | 一行讀、處理完就丟 |
+| 記憶體    | 與檔案同級（GB → 爆）      | 只佔一行（幾 KB）  |
+
+做法：
+
+- **`jq -c` 逐行處理**（檔案是 NDJSON 時 jq 自動 streaming，`-c` 讓輸出也維持一行一筆）
+  ```bash
+  jq -c 'select(.data.category=="design") | {ev:.data.event_id}' big.ndjson
+  ```
+- **聚合外包給 `sort`/`uniq`/`awk`**，不要用 jq 的 `group_by`/`sort_by`（那要把全資料收進 array）
+  ```bash
+  jq -r '.data.event_id' big.ndjson | sort | uniq -c   # 每個 event 幾筆
+  ```
+  `sort`/`uniq` 是外部排序工具，必要時用磁碟暫存，不會塞滿 RAM。
+- ❌ `jq -s '...'`（slurp = 故意把全檔讀成一個 array，等於自爆）
+
+一句話：把「一個無法分割的大樹」變成「一串可逐行丟棄的小樹」，jq 維持 streaming、記憶體恆定，全局聚合交給 `sort`/`uniq`/`awk`。
+
+- `jq -S . file.ndjson > file.formatted.ndjson` 可以把檔案 fmt 成人類容易讀的換行版本
+
 ## Docker
 
 ### Install docker on mac
+
+#### Install Docker CLI
+
+- 不論採用哪個方案，都需要安裝以下兩個
+- `brew install docker`
+- `brew install docker-compose`
+- `brew install docker-buildx`
 
 #### Colima
 
 - 開源
 - 自動掛 $HOME
-- To start colima now and restart at login:  
-  brew services start colima  
-  Or, if you don't want/need a background service you can just run:  
-  /usr/local/opt/colima/bin/colima start -f
-- brew install docker-buildx
+- To start colima now and restart at login: `brew services start colima`
+  - 調整設定檔做法
+    - 改 `$(brew --prefix)/opt/colima/homebrew.mxcl.colima.plist`: 加上 `--save-config=false`
+      ```xml
+      <key>ProgramArguments</key>
+      <array>
+              <string>/opt/homebrew/opt/colima/bin/colima</string>
+              <string>start</string>
+              <string>-f</string>
+              <string>--save-config=false</string>
+      </array>
+      ```
+    - `colima start --edit` 調整設定，然後關掉 colima，重新用 `brew services start colima`
+      - 或許有簡化方式 ?? `colima template` ??
+- 檢查是否在運作: `brew services list`
+- volume 遇到 `Too many open files`
+  - Colima 預設使用 `virtiofs`
+    但 `virtiofs` 在處理 macOS 的 extended attributes（xattr，就是你 ls -la 看到的 @ 符號）時有 bug
+    會錯誤回傳 EMFILE（Too many open files）
+    改用 `sshfs` 或 `9p` 可以繞過這個問題
 
 #### Podman
 
 - red hat
 - 自動掛 $HOME
+- TODO (沒嘗試過)
 
 #### Minikube
 
@@ -299,10 +406,6 @@
 # Install hyperkit and minikube
 brew install hyperkit
 brew install minikube
-
-# Install Docker CLI
-brew install docker
-brew install docker-compose
 
 # Start minikube
 minikube start
@@ -359,6 +462,10 @@ minikube mount {source directory}:{target directory}
   - `RUN --mount=type=cache,target=/app` 臨時掛載 cache
   - `RUN --mount=type=secret,id=DOTENV_LOCAL,dst=.env` 臨時掛載 secret, DOTENV_LOCAL 是標示符
 - https://github.com/raymond-chia/Note/blob/main/script/python/docker-compose.yaml 搭配 `docker network create {network name}`
+
+### Compose
+
+- `dns` 可以指定使用的 dns
 
 ### Docker in Docker
 
@@ -472,6 +579,16 @@ b: *a
 
 - autocomplete
   - mac: https://gist.github.com/romansavrulin/41e55fba693b4025ed693559083bc3a0
+  - 如果使用 zsh
+    - `brew install git zsh-completion`
+    - 添加
+      ```
+      if type brew &>/dev/null; then
+        FPATH="$(brew --prefix)/share/zsh/site-functions:${FPATH}"
+        autoload -Uz compinit
+        compinit
+      fi
+      ```
 - https://www.youtube.com/watch?v=aolI_Rz0ZqY&t=385s
   - 某個資料夾下都用某種 git config (user + email 之類的)
   - `git diff --word-diff`
@@ -517,7 +634,7 @@ b: *a
 - Add ssh key to github
   - github: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
   - gitlab: https://docs.gitlab.com/ee/user/ssh.html
-  - 不要設定 passphrase
+  - 把 private SSH key 添加入 ssh-agent
 - [設定 ssh key 之後要推 code 到 github](https://stackoverflow.com/questions/29297154/github-invalid-username-or-password)
   - git remote set-url origin git@github.com:raymond-chia/Note.git
 
@@ -532,10 +649,21 @@ b: *a
   - 後續步驟用 `needs` 指定是處理哪個 matrix 項目: https://docs.gitlab.com/ee/ci/yaml/#needsparallelmatrix
 - Job token permissions 設定跨專案權限
 
+#### glab
+
+- 改掉預設的 host `glab config set host {{網址}} -g`
+- 登入
+
+```
+glab config set client_id {{client id}} -g --host {{網址}}
+glab auth login --hostname {{網址}} --web
+```
+
 #### Pipeline
 
 - 在 gitlab pipeline ui 加上參數註解與預設值: https://docs.gitlab.com/ci/pipelines/#prefill-variables-in-manual-pipelines
 - rules:variables 不會傳到 downstream pipeline ??
+- resource_group 可以限制 concurrency
 
 #### Workload Identity Federation
 
@@ -551,6 +679,10 @@ b: *a
   $`\textcolor{red}{\text{your text}}`$
   ```
 
+#### 複製 markdown
+
+- 貼到 rich text editing, 轉換回 plain text editing, 再次複製
+
 ## Google
 
 - 服務狀態: https://status.cloud.google.com
@@ -563,6 +695,73 @@ b: *a
 
 - [data streamed to an ingestion time partitioned table might be delayed](https://cloud.google.com/bigquery/docs/streaming-data-into-bigquery#dataavailability)
   - up to 90 mins
+- 只能 export 到 cloud storage
+- Dataset 盡量不要高達 50,000 tables, 會有效能問題
+- Quota (除了 query 之外都是免費)
+  - Load data into tables
+  - Export data from tables
+  - Query table data
+  - Copy tables
+- 查詢費用, 儲存費用
+  - 查詢費用有 on demand / capacity 兩種
+    - on demand 按照掃描多少資料來計費
+      - 每個月前 1 TB 免費
+      - 選越多 colume 花費越高
+      - cached 回傳的資料不收費
+      - cancel 如果沒有真正中斷搜尋, 還是會收全額費用
+      - partition 跟 cluster 可以降低查詢量 -> 降低查詢花費
+    - capacity 就是包 cpu, 但是可以有 commitment 優惠
+  - 儲存費用有 active, long-term
+    - long-term 是 90 天沒動
+    - 每個月前 10 GB 免費
+- Query
+  - 三種: interactive, batch, continuous
+  - 可以設定
+    - 輸出到暫存還是永久 table, 優先度, 是否使用 cached query result, timeout, session mode, 加密機制, query 上限, dialect of SQL, location, rservation (應該是 capacity query)
+    - Optional job creation 可以節省小工作的時間 (因為可能省掉建立 job 的工)
+    - Jobs explorer 來檢查 query job 的現況
+    - Dry run 可以預估查詢費用
+      - 不適用於 External tables
+- Query SQL
+  - 可以把多個 SQL 塞在一個 request
+  - [可以改資料以外的部分, 比如 access policies](https://docs.cloud.google.com/bigquery/docs/introduction-sql)
+
+#### 三種: Standard BigQuery tables, External tables, Views
+
+##### Standard BigQuery tables
+
+- contain structured data and are stored in BigQuery storage in a columnar format
+- or store references to unstructured data in standard tables by using struct columns that adhere to the ObjectRef format
+- 3 types
+  - table
+  - table clone (只保存與 table 的差異)
+  - table snapshot (只用來還原) [(只保存跟現在的 diff)](https://docs.cloud.google.com/bigquery/docs/table-snapshots-intro#storage_costs)
+
+##### External tables
+
+- 只要不在 big query 就算
+
+##### Views
+
+- Views: query 時產生的 logical tables
+- Materialized views: precomputed views
+
+#### Debug
+
+- 印出工作錯誤 log `bq --project_id=${專案} --format=json show -j ${工作 ID}`
+
+#### bq
+
+- 預設 max_rows 100
+
+##### 塞資料
+
+- result of a BigQuery load job is atomic; either all records get inserted or none do
+- 沒有查詢到 bq load 本機檔案 & gcs 檔案有不同的大小限制
+- bq load --replace 可以只覆蓋指定 partition table
+- merge 才會檢查是否有重複的主 key。平常 bigquery 不管是否有重複的主 key
+  - merge 不會清理 bq 既有的重複 key
+  - `WHEN MATCHED THEN UPDATE` 可以後面覆蓋前面
 
 ### Cloud Platform
 
@@ -653,7 +852,9 @@ b: *a
   - 優化測試的錯誤訊息
   - txtar ??
 
-### Bash
+### Shell
+
+#### Bash
 
 - 驗證: https://www.shellcheck.net/
 - 寫法: https://google.github.io/styleguide/shellguide.html
@@ -673,7 +874,7 @@ b: *a
   - -D: dump header
   - -: alias to /dev/stdout
 
-#### 問題
+##### 問題
 
 - 錯誤訊息: `")syntax error: invalid arithmetic operator (error token is "`
   - https://unix.stackexchange.com/questions/297330/syntax-error-invalid-arithmetic-operator-error-token-is
@@ -682,6 +883,12 @@ b: *a
   - 使用 process substitution `< <(command)` 取代管道 `|`
 - 強制從終端機讀取輸入，不會被 pipe 或子 shell 影響  
   `read -r < /dev/tty`
+
+#### Zsh
+
+- oh my zsh
+  - theme 希望兩行 & 有秒數 & 有完整路徑 & git branch
+    - `amuse` `crcandy` `fino-time` `ys`
 
 ### C#
 
@@ -802,6 +1009,7 @@ func F[T any, TPointer interface{
   - 1. pip3 show --files {app 名稱}
     1. 組合 Location & Files  
        https://stackoverflow.com/questions/74597855/where-does-pip3-install-package-binaries
+  - uv 可以安裝 / 管理 python
 - pip list
 - requests 不能 async 發送請求
   - httpx 可以 async 發送請求
@@ -848,7 +1056,8 @@ import app1.package.tool
 
 - 避免建立 venv: `export UV_PROJECT_ENVIRONMENT=/usr/local`
 - 修改 toml: `uv add ${想要安裝的套件名稱}`
-- 實際安裝: `uv sync --no-install-project`
+- 實際安裝: `uv sync --frozen`
+- uv 可以安裝 / 管理 python
 
 #### Gunicorn
 
@@ -999,19 +1208,8 @@ import app1.package.tool
 
 #### Mac
 
-- brew
-  - switch version
-    - for example
-      - brew unlink node
-      - brew link node@14
 - [切換語言: ctrl + space](https://support.apple.com/en-sg/guide/mac-help/mchlp1406/mac)
-- 開機的時候做事
-  1. 打開 Automator
-  2. 選擇應用程式 ??
-  3. 執行 shell 工序指令
-  4. 寫 bash
-  5. 儲存
-  - https://support.apple.com/zh-tw/guide/automator/autbbd4cc11c/mac
+- 熱點: 角落綁其他功能，可以在設定修改
 
 ##### 如果密碼打錯被鎖
 
@@ -1030,6 +1228,33 @@ import app1.package.tool
 - spam cursor over lines: command + alt + arrow
 - back: ctrl + -
 - 還原意外關閉的頁面: cmd + shift + t
+
+##### brew
+
+- switch version
+  - for example
+    - brew unlink node
+    - brew link node@14
+- ```sh
+    brew tap 使用者/repo gitURL
+    cd $(brew --repository 使用者/repo)
+    # 可以在 git repo 進行 git 操作
+  ```
+
+##### 開機的時候做事
+
+1. 打開 Automator
+2. 選擇應用程式 ??
+3. 執行 shell 工序指令
+4. 寫 bash
+5. 儲存
+
+- https://support.apple.com/zh-tw/guide/automator/autbbd4cc11c/mac
+
+##### 檢查是否複製到密碼
+
+- 複製 [script](script/lua/hammerspoon.lua) 到 `~/.hammerspoon/init.lua`
+- reload config
 
 #### Debian
 
@@ -1264,6 +1489,36 @@ import app1.package.tool
   - n 下一個
   - shift + n 上一個
 - u 代表 undo
+- 貼上之前使用 `:set paste`
+
+## UI/UX
+
+### UI
+
+1. 對比（Contrast）：每行都在搶注意力，結果什麼都不突出，沒有視覺層級
+2. 重複（Repetition）：沒有任何一致性——字體、顏色、風格每行都換，讀者無法建立視覺規律
+3. 對齊（Alignment）：文字東一塊西一塊，沒有統一的對齊基準線
+4. 親密性（Proximity）：文字之間的間距隨意，看不出哪些內容是一組的
+
+- 重點
+  - 一套不衝突的配色方案
+  - 統一的字體和元素風格
+  - 基本的留白和佈局意識
+
+### UX
+
+- 《Don't Make Me Think》
+- 一致性（Consistency）：相同功能的外觀和行為要一致，降低學習成本
+- 可見性（Visibility）：系統狀態要讓使用者隨時知道發生了什麼事
+- 回饋（Feedback）：每個操作都應有即時、明確的回應
+- 容錯性（Error Tolerance）：預防錯誤發生，發生時也要容易復原（例如 undo）
+- Hick's Law：選項越多，決策時間越長 → 減少不必要的選擇
+- Fitts's Law：目標越大、越近，越容易點擊 → 重要按鈕要夠大、放在容易觸及的位置
+- Jakob's Law：使用者大部分時間花在別的產品上 → 遵循常見慣例，不要為了創新而反直覺
+- Miller's Law：短期記憶約能處理 7±2 個資訊單元 → 資訊要分群組呈現
+- 流暢就是要符合大腦的預測
+  - 大腦不會等感官回報，而是會先預測
+  - 如果預測跟回報不同，就會感覺不流暢
 
 ## Xcode
 
@@ -1275,3 +1530,8 @@ import app1.package.tool
   - xcode-select -p
 - if missing files
   - https://stackoverflow.com/questions/53135863/macos-mojave-ruby-config-h-file-not-found#answer-65481787
+
+## 銀行
+
+- 中國信託繳費方式
+  - 全國繳費網 -> 信用卡繳費 -> 要使用同一個人的其他銀行帳號繳費
