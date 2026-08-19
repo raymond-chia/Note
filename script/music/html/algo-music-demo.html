@@ -1,0 +1,556 @@
+<meta charset="utf-8">
+<title>Procedural BGM 引擎 · 風格 / 分軌 / 樂器 / Motif</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, -apple-system, "PingFang TC", sans-serif;
+         max-width: 800px; margin: 36px auto; padding: 0 20px; line-height: 1.55; }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  .sub { font-size:.85rem; opacity:.75; margin-top:0; }
+  button { font-size:.95rem; padding: 9px 18px; border-radius: 8px; border: 1px solid #8886;
+           background: #6cf3; cursor: pointer; margin: 6px 8px 6px 0; }
+  .stop { background: #f663; }
+  .mini { font-size:.82rem; padding:6px 12px; background:#8882; }
+  select { font-size:.9rem; padding:4px 8px; }
+  fieldset { border:1px solid #8884; border-radius:12px; margin:16px 0; padding:12px 18px;}
+  legend { font-size:.92rem; padding:0 6px; opacity:.85; font-weight:600;}
+  .ctrl { margin:12px 0; }
+  .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  .row label { width: 130px; font-size:.9rem; }
+  .row input[type=range]{ flex:1; min-width:130px; }
+  .row .val { width: 50px; text-align:right; font-variant-numeric:tabular-nums; font-size:.85rem; opacity:.8;}
+  .desc { font-size:.78rem; opacity:.7; margin:3px 0 0 142px; }
+  .desc b { font-weight:600; opacity:.95; }
+  .style-desc { font-size:.82rem; opacity:.8; margin-top:6px; min-height:1.2em;}
+  table.tracks { border-collapse:collapse; width:100%; font-size:.88rem; }
+  table.tracks th, table.tracks td { padding:6px 8px; text-align:left; border-bottom:1px solid #8883; }
+  table.tracks th { font-weight:600; opacity:.7; font-size:.8rem; }
+  table.tracks input[type=range]{ width:90px; vertical-align:middle; }
+  .load-status { font-size:.8rem; opacity:.7; margin-left:8px; }
+  code { background:#8882; padding:1px 5px; border-radius:4px; }
+</style>
+
+<h1>Procedural BGM 引擎</h1>
+<p class="sub">純演算法（即時合成，無取樣音檔、無 AI）：風格 preset → 分軌 / 樂器 / motif / groove 可再手調。</p>
+
+<div class="desc" style="margin-left:0">🎲＝保留設定，只換亂數種子。motif 模式下＝換一句新主題。下個循環生效。<br>
+⬇ MIDI＝把目前設定的 8 小節輸出成標準 .mid 檔（純音符、無音色、你的原創）。分軌會對到 GM 樂器：pad→弦樂、lead→依所選、bass→bass、drum→打擊(第10軌)。</div>
+<div class="row" style="margin-top:8px">
+  <label style="width:auto">🎲 亂數種子</label>
+  <input id="seed" type="number" min="0" max="4294967295" step="1" style="width:130px;font-size:.9rem;padding:4px 8px" oninput="SEED=(parseInt(this.value)||0)>>>0">
+  <button onclick="reseed()">🎲 換一組旋律</button>
+  <span class="desc" style="margin:0">同種子 + 同設定 → 生出完全一樣的旋律（可重現）。留空／改動後下個循環生效。</span>
+</div>
+<div class="row" style="margin-top:8px">
+  <button onclick="start()">▶ 播放</button>
+  <button class="stop" onclick="stopAll()">■ 停止</button>
+  <button class="mini" onclick="exportMIDI()">⬇ 匯出 MIDI（拿進 Godot / DAW）</button>
+</div>
+
+<fieldset>
+  <legend>風格 Preset</legend>
+  <div class="row">
+    <label>選風格</label>
+    <select id="preset" onchange="applyPreset()"></select>
+    <span class="load-status" id="load_status"></span>
+  </div>
+  <div class="style-desc" id="preset_desc"></div>
+  <div class="row" style="margin-top:8px">
+    <button class="mini" onclick="saveStyle()">💾 儲存目前設定為新風格 → 下載 styles.json</button>
+  </div>
+  <div class="desc" style="margin-left:0;margin-top:6px">
+    用 <b>VS Code Live Server</b>（或任何 http 伺服器）開本頁 → 自動載入同資料夾的 <code>styles.json</code>。
+    按上面按鈕會下載一份<b>合併好</b>的 <code>styles.json</code>（含所有自訂風格），把它放回本資料夾覆蓋即可。
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>分軌控制</legend>
+  <table class="tracks">
+    <thead><tr><th>軌</th><th>啟用</th><th>樂器音色</th><th>音量</th><th>說明</th></tr></thead>
+    <tbody id="track_body"></tbody>
+  </table>
+  <div class="desc" style="margin-left:0;margin-top:8px">
+    音色為<b>即時合成</b>，帶電子質感，非真樂器錄音。要真木吉他/鋼琴音色需改用取樣音檔（sample），此版不含。
+  </div>
+</fieldset>
+
+<fieldset>
+  <legend>作曲參數</legend>
+  <div class="ctrl">
+    <div class="row"><label>旋律模式</label>
+      <select id="melodyMode">
+        <option value="motif">主題 Motif（有記憶點・像曲子）</option>
+        <option value="walk">隨機漫步（即興・無主題）</option>
+      </select>
+      <label style="width:auto">節奏 Groove</label>
+      <select id="groove">
+        <option value="straight">平直（八分平均）</option>
+        <option value="country">鄉村搖擺（swing + boom-chick）</option>
+        <option value="driving">推進（戰鬥・密集）</option>
+      </select>
+    </div>
+    <div class="desc"><b>Motif</b>＝先生成一句短動機，再重複+變奏+移調，聽起來有主題；<b>漫步</b>＝每音擲骰亂走。<b>Groove</b> 決定節奏語彙：鄉村搖擺會把貝斯做成「根音-和弦」的 boom-chick 感。</div>
+  </div>
+  <div class="ctrl"><div class="row"><label>BPM 速度</label><input id="bpm" type="range" min="50" max="170" step="1"><span class="val" id="bpm_v"></span></div>
+    <div class="desc"><b>快</b>＝緊湊推進；<b>慢</b>＝鬆、冥想。</div></div>
+  <div class="ctrl"><div class="row"><label>旋律密度</label><input id="density" type="range" min="0" max="1" step="0.05"><span class="val" id="density_v"></span></div>
+    <div class="desc"><b>大</b>＝音密旋律明顯；<b>小</b>＝留白空靈。motif 模式下影響變奏時的裝飾音多寡。</div></div>
+  <div class="ctrl"><div class="row"><label>音符長度</label><input id="length" type="range" min="0.3" max="3" step="0.1"><span class="val" id="length_v"></span></div>
+    <div class="desc"><b>長</b>＝綿延重疊；<b>短</b>＝顆粒分明 staccato。</div></div>
+  <div class="ctrl"><div class="row"><label>Reverb 空間</label><input id="reverb" type="range" min="0" max="1" step="0.01"><span class="val" id="reverb_v"></span></div>
+    <div class="desc"><b>大</b>＝飄遠空間深；<b>小</b>＝乾貼近清楚。</div></div>
+  <div class="ctrl">
+    <div class="row"><label>調性</label>
+      <select id="scale">
+        <option value="major">大調（明亮・鄉村）</option>
+        <option value="minor">小調（憂鬱）</option>
+        <option value="lydian">Lydian（夢幻・田園）</option>
+        <option value="dorian">Dorian（溫暖・冒險）</option>
+        <option value="phrygian">Phrygian（緊張・異國）</option>
+      </select>
+      <label style="width:auto">和弦色彩</label>
+      <select id="color">
+        <option value="add9">add9 / sus（會呼吸）</option>
+        <option value="triad">三和弦（乾淨方正）</option>
+        <option value="power">強力和弦（厚・戰鬥）</option>
+      </select>
+    </div>
+    <div class="desc"><b>調性</b>＝情緒色彩。<b>色彩</b>：add9 懸而未決；三和弦乾淨（鄉村常用）；power 厚重戰鬥。</div>
+  </div>
+  <div class="ctrl"><div class="row"><label>整體音量</label><input id="vol" type="range" min="0" max="1" step="0.01"><span class="val" id="vol_v"></span></div>
+    <div class="desc">總輸出大小。</div></div>
+</fieldset>
+
+<script src="soundfonts/soundfont-player.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+
+// ================= SoundFont（真樂器取樣，本機 FluidR3_GM）=================
+// 完整 128 GM 樂器名稱（與 soundfonts/FluidR3_GM/<name>-mp3.js 對應）
+const GM_NAMES=["acoustic_grand_piano","bright_acoustic_piano","electric_grand_piano","honkytonk_piano","electric_piano_1","electric_piano_2","harpsichord","clavinet","celesta","glockenspiel","music_box","vibraphone","marimba","xylophone","tubular_bells","dulcimer","drawbar_organ","percussive_organ","rock_organ","church_organ","reed_organ","accordion","harmonica","tango_accordion","acoustic_guitar_nylon","acoustic_guitar_steel","electric_guitar_jazz","electric_guitar_clean","electric_guitar_muted","overdriven_guitar","distortion_guitar","guitar_harmonics","acoustic_bass","electric_bass_finger","electric_bass_pick","fretless_bass","slap_bass_1","slap_bass_2","synth_bass_1","synth_bass_2","violin","viola","cello","contrabass","tremolo_strings","pizzicato_strings","orchestral_harp","timpani","string_ensemble_1","string_ensemble_2","synth_strings_1","synth_strings_2","choir_aahs","voice_oohs","synth_choir","orchestra_hit","trumpet","trombone","tuba","muted_trumpet","french_horn","brass_section","synth_brass_1","synth_brass_2","soprano_sax","alto_sax","tenor_sax","baritone_sax","oboe","english_horn","bassoon","clarinet","piccolo","flute","recorder","pan_flute","blown_bottle","shakuhachi","whistle","ocarina","lead_1_square","lead_2_sawtooth","lead_3_calliope","lead_4_chiff","lead_5_charang","lead_6_voice","lead_7_fifths","lead_8_bass__lead","pad_1_new_age","pad_2_warm","pad_3_polysynth","pad_4_choir","pad_5_bowed","pad_6_metallic","pad_7_halo","pad_8_sweep","fx_1_rain","fx_2_soundtrack","fx_3_crystal","fx_4_atmosphere","fx_5_brightness","fx_6_goblins","fx_7_echoes","fx_8_scifi","sitar","banjo","shamisen","koto","kalimba","bag_pipe","fiddle","shanai","tinkle_bell","agogo","steel_drums","woodblock","taiko_drum","melodic_tom","synth_drum","reverse_cymbal","guitar_fret_noise","breath_noise","seashore","bird_tweet","telephone_ring","helicopter","applause","gunshot"];
+const GM_LABEL_ZH={acoustic_grand_piano:"平台鋼琴",bright_acoustic_piano:"明亮鋼琴",electric_grand_piano:"電平台鋼琴",honkytonk_piano:"酒吧鋼琴",electric_piano_1:"電鋼琴1",electric_piano_2:"電鋼琴2",harpsichord:"大鍵琴",clavinet:"clavinet",celesta:"鋼片琴",glockenspiel:"鐘琴",music_box:"音樂盒",vibraphone:"顫音琴",marimba:"馬林巴",xylophone:"木琴",tubular_bells:"管鐘",dulcimer:"揚琴",drawbar_organ:"抽拉管風琴",percussive_organ:"敲擊管風琴",rock_organ:"搖滾管風琴",church_organ:"教堂管風琴",reed_organ:"簧風琴",accordion:"手風琴",harmonica:"口琴",tango_accordion:"探戈手風琴",acoustic_guitar_nylon:"尼龍弦吉他",acoustic_guitar_steel:"鋼弦吉他",electric_guitar_jazz:"爵士電吉他",electric_guitar_clean:"清音電吉他",electric_guitar_muted:"悶音電吉他",overdriven_guitar:"過載吉他",distortion_guitar:"破音吉他",guitar_harmonics:"吉他泛音",acoustic_bass:"原聲貝斯",electric_bass_finger:"指彈電貝斯",electric_bass_pick:"撥片電貝斯",fretless_bass:"無品貝斯",slap_bass_1:"擊弦貝斯1",slap_bass_2:"擊弦貝斯2",synth_bass_1:"合成貝斯1",synth_bass_2:"合成貝斯2",violin:"小提琴",viola:"中提琴",cello:"大提琴",contrabass:"低音提琴",tremolo_strings:"震音弦樂",pizzicato_strings:"撥奏弦樂",orchestral_harp:"豎琴",timpani:"定音鼓",string_ensemble_1:"弦樂合奏1",string_ensemble_2:"弦樂合奏2",synth_strings_1:"合成弦樂1",synth_strings_2:"合成弦樂2",choir_aahs:"人聲啊",voice_oohs:"人聲喔",synth_choir:"合成人聲",orchestra_hit:"管弦齊奏",trumpet:"小號",trombone:"長號",tuba:"低音號",muted_trumpet:"弱音小號",french_horn:"法國號",brass_section:"銅管組",synth_brass_1:"合成銅管1",synth_brass_2:"合成銅管2",soprano_sax:"高音薩克斯",alto_sax:"中音薩克斯",tenor_sax:"次中音薩克斯",baritone_sax:"上低音薩克斯",oboe:"雙簧管",english_horn:"英國管",bassoon:"低音管",clarinet:"單簧管",piccolo:"短笛",flute:"長笛",recorder:"直笛",pan_flute:"排笛",blown_bottle:"吹瓶",shakuhachi:"尺八",whistle:"哨",ocarina:"陶笛",lead_1_square:"方波Lead",lead_2_sawtooth:"鋸齒Lead",lead_3_calliope:"風琴Lead",lead_4_chiff:"氣音Lead",lead_5_charang:"charang",lead_6_voice:"人聲Lead",lead_7_fifths:"五度Lead",lead_8_bass__lead:"貝斯Lead",pad_1_new_age:"新世紀Pad",pad_2_warm:"暖Pad",pad_3_polysynth:"複音Pad",pad_4_choir:"人聲Pad",pad_5_bowed:"弓弦Pad",pad_6_metallic:"金屬Pad",pad_7_halo:"光暈Pad",pad_8_sweep:"掃頻Pad",fx_1_rain:"雨聲FX",fx_2_soundtrack:"配樂FX",fx_3_crystal:"水晶FX",fx_4_atmosphere:"氛圍FX",fx_5_brightness:"明亮FX",fx_6_goblins:"哥布林FX",fx_7_echoes:"回聲FX",fx_8_scifi:"科幻FX",sitar:"西塔琴",banjo:"班鳩琴",shamisen:"三味線",koto:"箏",kalimba:"卡林巴",bag_pipe:"風笛",fiddle:"提琴(民謠)",shanai:"嗩吶類",tinkle_bell:"叮鈴",agogo:"agogo",steel_drums:"鋼鼓",woodblock:"木魚",taiko_drum:"太鼓",melodic_tom:"旋律鼓",synth_drum:"合成鼓",reverse_cymbal:"反轉鈸",guitar_fret_noise:"吉他把位雜音",breath_noise:"呼吸聲",seashore:"海浪",bird_tweet:"鳥鳴",telephone_ring:"電話鈴",helicopter:"直升機",applause:"掌聲",gunshot:"槍聲"};
+const sfCache={}; // name -> soundfont-player instance
+let sfStatusEl=null;
+function loadSF(name){
+  if(sfCache[name]) return Promise.resolve(sfCache[name]);
+  if(!window.Soundfont||!ctx) return Promise.reject('no-lib');
+  return Soundfont.instrument(ctx,name,{
+    nameToUrl:(n)=>`soundfonts/FluidR3_GM/${n}-mp3.js`,
+    destination:master
+  }).then(inst=>{sfCache[name]=inst;return inst;});
+}
+
+// ================= 樂器音色庫（合成）=================
+const INSTRUMENTS = {
+  softpad:{name:'柔和 Pad',wave:'triangle',detune:8,cutoff:1800,env:0.15,a:0.4,r:1.2},
+  warmpad:{name:'暖 Pad',wave:'sawtooth',detune:12,cutoff:900,env:0.1,a:0.5,r:1.4},
+  glasspad:{name:'玻璃 Pad',wave:'sine',detune:5,cutoff:3500,env:0.3,a:0.6,r:1.6},
+  pluck:{name:'撥弦 Pluck',wave:'triangle',detune:3,cutoff:2600,env:2.2,a:0.005,r:0.25},
+  guitar:{name:'木吉他感',wave:'sawtooth',detune:4,cutoff:1600,env:2.6,a:0.004,r:0.4},
+  bell:{name:'鐘 Bell',wave:'sine',detune:0,cutoff:5000,env:3.5,a:0.002,r:1.5,fm:true},
+  flute:{name:'笛 Flute',wave:'sine',detune:2,cutoff:2800,env:0.2,a:0.12,r:0.3,vib:true},
+  lead:{name:'尖銳 Lead',wave:'sawtooth',detune:6,cutoff:3200,env:1.5,a:0.01,r:0.2},
+  organ:{name:'風琴 Organ',wave:'square',detune:3,cutoff:2200,env:0.05,a:0.03,r:0.15},
+  harmonica:{name:'口琴感',wave:'sawtooth',detune:10,cutoff:2000,env:0.3,a:0.06,r:0.2,vib:true},
+  sawbass:{name:'Saw Bass',wave:'sawtooth',detune:2,cutoff:700,env:1.8,a:0.008,r:0.25},
+  subbass:{name:'Sub Bass',wave:'sine',detune:0,cutoff:400,env:0.5,a:0.02,r:0.3},
+  pickbass:{name:'撥弦 Bass',wave:'triangle',detune:2,cutoff:900,env:2.5,a:0.005,r:0.2},
+};
+const PAD_CHOICES=['softpad','warmpad','glasspad','organ'];
+const LEAD_CHOICES=['pluck','guitar','bell','flute','lead','organ','harmonica'];
+const BASS_CHOICES=['sawbass','subbass','pickbass'];
+
+// ================= 音階 / 和弦 =================
+const SCALES={major:[0,2,4,5,7,9,11],minor:[0,2,3,5,7,8,10],lydian:[0,2,4,6,7,9,11],dorian:[0,2,3,5,7,9,10],phrygian:[0,1,3,5,7,8,10]};
+const PROG_DEG=[0,5,3,4], PROG_COUNTRY=[0,3,4,0]; // 鄉村用 I-IV-V-I
+function midiToFreq(m){return 440*Math.pow(2,(m-69)/12);}
+function euclid(k,n){const p=[];let b=0;for(let i=0;i<n;i++){b+=k;if(b>=n){b-=n;p.push(1);}else p.push(0);}return p;}
+function buildChord(scaleArr,root,color,prev){
+  const pick=deg=>{const oct=Math.floor(deg/scaleArr.length);return 48+scaleArr[((deg%scaleArr.length)+scaleArr.length)%scaleArr.length]+oct*12;};
+  let notes;
+  if(color==='power') notes=[pick(root),pick(root)+7];
+  else if(color==='add9') notes=[pick(root),pick(root+2),pick(root+4),pick(root+8)];
+  else notes=[pick(root),pick(root+2),pick(root+4)];
+  if(prev) notes=notes.map(n=>{let best=n,bd=1e9;for(let o=-12;o<=12;o+=12){const c=n+o;const d=Math.min(...prev.map(p=>Math.abs(p-c)));if(d<bd){bd=d;best=c;}}return best;});
+  return notes;
+}
+
+// ================= 內建 Preset =================
+const BUILTIN={
+  country:{desc:'大調、鄉村搖擺 groove、木吉他 + 玻璃 pad、主題 motif、I-IV-V。悠閒田園。',
+    bpm:104,density:0.55,length:0.6,reverb:0.28,scale:'major',color:'triad',vol:0.5,melodyMode:'motif',groove:'country',
+    tracks:{pad:{on:true,inst:'glasspad',vol:0.28},lead:{on:true,inst:'guitar',vol:0.6},bass:{on:true,inst:'pickbass',vol:0.55},drum:{on:true,vol:0.3}}},
+  battle:{desc:'Phrygian、推進 groove、Saw bass + 尖銳 lead、密集、少 reverb、強鼓。緊張戰鬥。',
+    bpm:148,density:0.8,length:0.4,reverb:0.12,scale:'phrygian',color:'power',vol:0.5,melodyMode:'motif',groove:'driving',
+    tracks:{pad:{on:true,inst:'warmpad',vol:0.3},lead:{on:true,inst:'lead',vol:0.55},bass:{on:true,inst:'sawbass',vol:0.6},drum:{on:true,vol:0.6}}},
+  mystery:{desc:'Dorian、平直、鐘 + 玻璃 pad、稀疏漫步、長 reverb。神秘探索。',
+    bpm:76,density:0.35,length:1.8,reverb:0.6,scale:'dorian',color:'add9',vol:0.5,melodyMode:'walk',groove:'straight',
+    tracks:{pad:{on:true,inst:'glasspad',vol:0.3},lead:{on:true,inst:'bell',vol:0.5},bass:{on:true,inst:'subbass',vol:0.45},drum:{on:false,vol:0.2}}},
+  ambient:{desc:'小調、極慢、柔 pad + 笛、大量留白與 reverb、無鼓。空靈冥想。',
+    bpm:66,density:0.3,length:2.4,reverb:0.75,scale:'minor',color:'add9',vol:0.5,melodyMode:'walk',groove:'straight',
+    tracks:{pad:{on:true,inst:'softpad',vol:0.4},lead:{on:true,inst:'flute',vol:0.4},bass:{on:true,inst:'subbass',vol:0.35},drum:{on:false,vol:0.2}}},
+};
+const BUILTIN_LABEL={country:'悠閒鄉村',battle:'緊張戰鬥',mystery:'神秘探索',ambient:'空靈 ambient'};
+let STYLES={}; // 合併內建 + 自訂
+
+// ================= 分軌 UI =================
+const TRACK_DEFS=[
+  {key:'pad',label:'和弦 Pad',choices:PAD_CHOICES,note:'鋪底和聲'},
+  {key:'lead',label:'主旋律',choices:LEAD_CHOICES,note:'主題音，換樂器差最多'},
+  {key:'bass',label:'低音 Bass',choices:BASS_CHOICES,note:'厚度與根基'},
+  {key:'drum',label:'鼓組',choices:null,note:'noise 合成 kick/snare/hihat'},
+];
+const track={};
+function buildTrackUI(){
+  const tb=$('track_body');tb.innerHTML='';
+  TRACK_DEFS.forEach(d=>{
+    track[d.key]={on:true,inst:d.choices?d.choices[0]:null,vol:0.5};
+    const instCell=d.choices
+      ?`<select onchange="track['${d.key}'].inst=this.value" id="inst_${d.key}">`
+        +`<optgroup label="🎻 真樂器 SoundFont (128 GM)">`
+        +GM_NAMES.map(n=>`<option value="gm:${n}">${GM_LABEL_ZH[n]||n}</option>`).join('')
+        +`</optgroup>`
+        +`<optgroup label="🎛 合成音色">`
+        +d.choices.map(c=>`<option value="${c}">${INSTRUMENTS[c].name}</option>`).join('')
+        +`</optgroup>`
+        +`</select>`
+      :`<span style="opacity:.6">內建鼓組</span>`;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${d.label}</td><td><input type="checkbox" checked onchange="track['${d.key}'].on=this.checked"></td><td>${instCell}</td><td><input type="range" min="0" max="1" step="0.05" value="0.5" oninput="track['${d.key}'].vol=parseFloat(this.value)" id="vol_${d.key}"></td><td style="opacity:.65;font-size:.8rem">${d.note}</td>`;
+    tb.appendChild(tr);
+  });
+}
+buildTrackUI();
+['bpm','density','length','reverb','vol'].forEach(id=>{const el=$(id);el.addEventListener('input',()=>$(id+'_v').textContent=el.value);});
+
+// ================= 風格套用 / 讀寫 =================
+function rebuildPresetMenu(sel){
+  const menu=$('preset');menu.innerHTML='';
+  for(const k in STYLES){const o=document.createElement('option');o.value=k;o.textContent=STYLES[k]._label||k;menu.appendChild(o);}
+  if(sel&&STYLES[sel])menu.value=sel;
+}
+function applyPreset(){
+  const p=STYLES[$('preset').value];if(!p)return;
+  $('preset_desc').textContent=p.desc||'';
+  const set=(id,v,d)=>{if(v!==undefined){$(id).value=v;}else if(d!==undefined)$(id).value=d;};
+  set('bpm',p.bpm);set('density',p.density);set('length',p.length);set('reverb',p.reverb);
+  set('scale',p.scale);set('color',p.color);set('vol',p.vol);
+  set('melodyMode',p.melodyMode,'motif');set('groove',p.groove,'straight');
+  ['bpm','density','length','reverb','vol'].forEach(id=>$(id+'_v').textContent=$(id).value);
+  if(p.tracks)for(const k in p.tracks){const t=p.tracks[k];if(!track[k])continue;
+    track[k].on=t.on;track[k].vol=t.vol;if(t.inst)track[k].inst=t.inst;
+    const idx=TRACK_DEFS.findIndex(d=>d.key===k)+1;
+    const cb=document.querySelector(`#track_body tr:nth-child(${idx}) input[type=checkbox]`);if(cb)cb.checked=t.on;
+    $('vol_'+k).value=t.vol;if(t.inst&&$('inst_'+k))$('inst_'+k).value=t.inst;}
+  applyMix();
+}
+function currentSettings(){
+  const s={desc:'(自訂) '+new Date().toLocaleString(),
+    bpm:+$('bpm').value,density:+$('density').value,length:+$('length').value,reverb:+$('reverb').value,
+    scale:$('scale').value,color:$('color').value,vol:+$('vol').value,melodyMode:$('melodyMode').value,groove:$('groove').value,tracks:{}};
+  TRACK_DEFS.forEach(d=>{s.tracks[d.key]={on:track[d.key].on,vol:track[d.key].vol};if(track[d.key].inst)s.tracks[d.key].inst=track[d.key].inst;});
+  return s;
+}
+// 儲存：把目前設定存成新風格，連同所有已載入的「自訂」風格合併，寫回 styles.json。
+// 優先用 File System Access API 直接覆蓋原檔（Chrome/Edge，需 http 開啟）；
+// 不支援時退回傳統下載（進下載資料夾，需手動覆蓋）。
+let styleFileHandle=null; // 記住使用者選過的 styles.json，之後可免再選直接覆蓋
+async function saveStyle(){
+  // 重要：showSaveFilePicker 必須在使用者手勢「當下」呼叫，
+  // 若先 prompt() 會中斷手勢 → SecurityError。故先開 picker，再問名字。
+  let handle=styleFileHandle;
+  if(!handle && window.showSaveFilePicker){
+    try{
+      handle=await window.showSaveFilePicker({
+        suggestedName:'styles.json',
+        types:[{description:'JSON',accept:{'application/json':['.json']}}],
+      });
+      styleFileHandle=handle; // 記住，同分頁之後免再選
+    }catch(e){
+      if(e&&e.name==='AbortError'){$('load_status').textContent='已取消。';return;}
+      console.warn('showSaveFilePicker 失敗，改用下載：',e);
+      handle=null; // 退回傳統下載
+    }
+  }
+
+  const cur=$('preset').value||'我的風格';
+  const name=prompt('風格名稱（會成為 styles.json 的 key）：',cur);if(!name)return;
+  // 即時加入本次選單
+  STYLES[name]={...currentSettings(),_label:name};
+  rebuildPresetMenu(name);applyPreset();
+  // 組出要寫回檔的物件：只含自訂風格（排除內建），_label 不寫進檔
+  const out={_readme:'自訂風格檔。用 http 伺服器（如 VS Code Live Server）開頁面會自動載入。由頁面「儲存」按鈕寫入。'};
+  for(const k in STYLES){
+    if(k in BUILTIN) continue;            // 內建不寫進檔
+    const {_label,...rest}=STYLES[k];
+    out[k]=rest;
+  }
+  const json=JSON.stringify(out,null,2);
+  const nCustom=Object.keys(out).filter(k=>!k.startsWith('_')).length;
+
+  // 首選：直接寫回選定的 styles.json（可接 git commit/push）
+  if(handle){
+    try{
+      const w=await handle.createWritable();
+      await w.write(json);await w.close();
+      $('load_status').textContent='已寫入 styles.json（含 '+nCustom+' 個自訂風格）。git add/commit/push 即可同步到別台。';
+      return;
+    }catch(e){
+      console.warn('寫檔失敗，改用下載：',e);
+      $('load_status').textContent='寫檔失敗（'+(e&&e.name||e)+'），改用下載。';
+    }
+  }
+
+  // fallback：傳統下載到下載資料夾，需手動覆蓋
+  const blob=new Blob([json],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download='styles.json';a.click();
+  URL.revokeObjectURL(a.href);
+  $('load_status').textContent='已下載 styles.json（含 '+nCustom+' 個自訂風格），放回本資料夾覆蓋即可。';
+}
+
+// 啟動：先塞內建，再試著 fetch styles.json（file:// 會失敗→自動略過）
+function initStyles(){
+  STYLES={};
+  for(const k in BUILTIN)STYLES[k]={...BUILTIN[k],_label:BUILTIN_LABEL[k]};
+  rebuildPresetMenu('country');$('preset').value='ambient';applyPreset();
+  fetch('styles.json').then(r=>r.ok?r.json():Promise.reject()).then(obj=>{
+    for(const k in obj){if(k.startsWith('_'))continue;STYLES[k]={...obj[k],_label:k};}
+    rebuildPresetMenu($('preset').value);
+    $('load_status').textContent='已載入 styles.json 的自訂風格。';
+  }).catch(()=>{$('load_status').textContent='（雙擊開檔無法自動讀 styles.json；可用「選檔」按鈕手動載入）';});
+}
+
+// ================= Web Audio =================
+let ctx,master,reverbNode,dryGain,wetGain,playing=false,timers=[],loopTimer=null,SEED=4242;
+function makeRng(seed){return function(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};}
+function reseed(){SEED=((SEED*2654435761)>>>0)&0xffff;syncSeedUI();}
+function syncSeedUI(){const el=$('seed');if(el)el.value=SEED;}
+function makeImpulse(sec,decay){const rate=ctx.sampleRate,len=Math.floor(rate*sec),buf=ctx.createBuffer(2,len,rate);for(let ch=0;ch<2;ch++){const d=buf.getChannelData(ch);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,decay);}return buf;}
+function ensureCtx(){if(ctx)return;for(const k in sfCache)delete sfCache[k];ctx=new(window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();dryGain=ctx.createGain();wetGain=ctx.createGain();reverbNode=ctx.createConvolver();reverbNode.buffer=makeImpulse(3.2,2.5);master.connect(dryGain).connect(ctx.destination);master.connect(wetGain).connect(reverbNode).connect(ctx.destination);}
+function applyMix(){if(!ctx)return;const w=+$('reverb').value;wetGain.gain.setTargetAtTime(w,ctx.currentTime,0.1);dryGain.gain.setTargetAtTime(1-0.35*w,ctx.currentTime,0.1);master.gain.setTargetAtTime(+$('vol').value,ctx.currentTime,0.1);}
+['reverb','vol'].forEach(id=>$(id).addEventListener('input',applyMix));
+
+function freqToMidi(f){return Math.round(69+12*Math.log2(f/440));}
+function playNote(instKey,freq,t,dur,gain){
+  // GM 真樂器：走 soundfont-player（已預載才有聲，否則靜默 fallback 不報錯）
+  if(typeof instKey==='string'&&instKey.startsWith('gm:')){
+    const name=instKey.slice(3), inst=sfCache[name];
+    if(inst){ inst.play(freqToMidi(freq), t, {duration:dur, gain:gain*2.2}); return; }
+    // 未載入→退回合成 softpad，避免無聲
+    instKey='softpad';
+  }
+  const ins=INSTRUMENTS[instKey];if(!ins)return;
+  const g=ctx.createGain(),filt=ctx.createBiquadFilter();filt.type='lowpass';filt.Q.value=1;
+  const baseCut=ins.cutoff;
+  filt.frequency.setValueAtTime(baseCut*(1+ins.env),t);
+  filt.frequency.exponentialRampToValueAtTime(Math.max(120,baseCut),t+Math.min(dur,0.4));
+  g.connect(filt);filt.connect(master);
+  const a=ins.a,r=Math.min(ins.r,dur*0.6);
+  g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(gain,t+a);
+  g.gain.setValueAtTime(gain,t+Math.max(a,dur-r));g.gain.linearRampToValueAtTime(0.0001,t+dur);
+  [-1,1].forEach(sign=>{
+    const o=ctx.createOscillator();o.type=ins.wave;o.frequency.value=freq;o.detune.value=sign*ins.detune;
+    if(ins.fm){const m=ctx.createOscillator(),mg=ctx.createGain();m.frequency.value=freq*2.01;mg.gain.value=freq*1.2;m.connect(mg);mg.connect(o.frequency);m.start(t);m.stop(t+dur+0.1);}
+    if(ins.vib){const lfo=ctx.createOscillator(),lg=ctx.createGain();lfo.frequency.value=5;lg.gain.value=freq*0.01;lfo.connect(lg);lg.connect(o.frequency);lfo.start(t);lfo.stop(t+dur+0.1);}
+    o.connect(g);o.start(t);o.stop(t+dur+0.1);
+  });
+}
+function noiseBurst(t,dur,type,gain){const len=Math.floor(ctx.sampleRate*dur),buf=ctx.createBuffer(1,len,ctx.sampleRate),d=buf.getChannelData(0);for(let i=0;i<len;i++)d[i]=Math.random()*2-1;const src=ctx.createBufferSource();src.buffer=buf;const filt=ctx.createBiquadFilter();if(type==='hihat'){filt.type='highpass';filt.frequency.value=7000;}else{filt.type='bandpass';filt.frequency.value=type==='snare'?1800:200;}const g=ctx.createGain();g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(0.001,t+dur);src.connect(filt);filt.connect(g);g.connect(master);src.start(t);src.stop(t+dur);}
+function kick(t,gain){const o=ctx.createOscillator(),g=ctx.createGain();o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(45,t+0.12);g.gain.setValueAtTime(gain,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.18);o.connect(g);g.connect(master);o.start(t);o.stop(t+0.2);}
+
+function stopAll(){playing=false;timers.forEach(clearTimeout);timers=[];if(loopTimer)clearTimeout(loopTimer);if(ctx){master.gain.setTargetAtTime(0,ctx.currentTime,0.1);setTimeout(()=>{if(ctx){ctx.close();ctx=null;}},400);}}
+function usedGM(){ // 目前啟用軌用到的 GM 樂器名
+  return [...new Set(TRACK_DEFS.filter(d=>d.choices&&track[d.key].on&&(track[d.key].inst||'').startsWith('gm:')).map(d=>track[d.key].inst.slice(3)))];
+}
+function start(){
+  stopAll();
+  setTimeout(async()=>{
+    ensureCtx();applyMix();
+    const gm=usedGM();
+    if(gm.length){
+      $('load_status').textContent='載入樂器音色中…（'+gm.map(n=>GM_LABEL_ZH[n]||n).join('、')+'）';
+      try{ await Promise.all(gm.map(loadSF)); $('load_status').textContent='音色已載入。'; }
+      catch(e){ $('load_status').textContent='⚠ SoundFont 載入失敗，改用合成音。請確認用 http 開啟本頁且 soundfonts/ 存在。'; }
+    }
+    playing=true;loop();
+  },420);
+}
+function schedule(fn,t){return setTimeout(()=>{if(playing)fn();},Math.max(0,(t-ctx.currentTime)*1000));}
+
+// ---- Motif 引擎：生成一句短動機（音階級數序列 + 節奏） ----
+function makeMotif(rng,len){
+  const contour=[];let deg=0;
+  for(let i=0;i<len;i++){contour.push(deg);const step=[-2,-1,1,2,0][Math.floor(rng()*5)];deg+=step;}
+  // 節奏：每個音是否延長（1=八分,2=四分）
+  const rhythm=contour.map(()=>rng()<0.3?2:1);
+  return {contour,rhythm};
+}
+
+// 產生一份「音符事件清單」——播放與 MIDI 匯出共用，確保一致。
+// 事件：{track:'pad'|'lead'|'bass'|'drum', beat:起始拍, durBeats:時長拍, midi:音高, drum:'kick'|'snare'|'hihat', vel:0..1}
+function composeScore(){
+  const rng=makeRng(SEED);
+  const scaleArr=SCALES[$('scale').value],color=$('color').value;
+  const density=+$('density').value,noteLen=+$('length').value;
+  const mode=$('melodyMode').value,groove=$('groove').value;
+  const prog=groove==='country'?PROG_COUNTRY:PROG_DEG;
+  const bars=8, beatsPerBar=4;
+  const events=[];
+  let prev=null;
+  const motif=makeMotif(rng,4+Math.floor(rng()*3));
+
+  for(let b=0;b<bars;b++){
+    const rootDeg=prog[b%prog.length];
+    const chord=buildChord(scaleArr,rootDeg,color,prev);prev=chord;
+    const B=b*beatsPerBar; // 本小節起始拍
+    const pool=[...new Set([...chord.map(n=>n-12),...chord])].sort((a,b)=>a-b);
+
+    // pad：整小節和弦
+    chord.forEach(m=>events.push({track:'pad',beat:B,durBeats:beatsPerBar*0.96,midi:m,vel:0.12*track.pad.vol*2}));
+
+    // lead
+    if(mode==='motif'){
+      const transpose=rootDeg; let pos=0;
+      for(let n=0;n<motif.contour.length;n++){
+        const durBeats=motif.rhythm[n]*0.5; if(pos>=8)break;
+        const degIndex=((motif.contour[n]+transpose)%scaleArr.length+scaleArr.length)%scaleArr.length;
+        const oct=Math.floor((motif.contour[n]+transpose)/scaleArr.length);
+        const midi=60+scaleArr[degIndex]+oct*12+12;
+        events.push({track:'lead',beat:B+pos*0.5,durBeats:noteLen,midi,vel:0.14*track.lead.vol*2});
+        if(density>0.6&&rng()<0.3&&pos+1<8){
+          const gm=midi+scaleArr[(degIndex+1)%scaleArr.length]-scaleArr[degIndex];
+          events.push({track:'lead',beat:B+(pos+0.5)*0.5,durBeats:noteLen*0.5,midi:gm,vel:0.10*track.lead.vol*2});
+        }
+        pos+=durBeats*2;
+      }
+    }else{
+      let mIdx=Math.floor(rng()*pool.length);
+      for(let i=0;i<8;i++){if(rng()>density)continue;mIdx+=(rng()<0.5?-1:1);mIdx=Math.max(0,Math.min(pool.length-1,mIdx));
+        events.push({track:'lead',beat:B+i*0.5,durBeats:noteLen,midi:pool[mIdx]+12,vel:0.14*track.lead.vol*2});}
+    }
+
+    // bass
+    {
+      const root=chord[0]-12,fifth=root+7;
+      if(groove==='country'){
+        [[0,root],[2,fifth],[4,root],[6,fifth]].forEach(([i,note])=>events.push({track:'bass',beat:B+i*0.5,durBeats:0.5,midi:note,vel:0.2*track.bass.vol*2}));
+      }else if(groove==='driving'){
+        for(let i=0;i<8;i++)events.push({track:'bass',beat:B+i*0.5,durBeats:0.4,midi:root,vel:0.2*track.bass.vol*2});
+      }else{
+        euclid(3,8).forEach((on,i)=>{if(on)events.push({track:'bass',beat:B+i*0.5,durBeats:0.6,midi:root,vel:0.2*track.bass.vol*2});});
+      }
+    }
+
+    // drum
+    {
+      const dv=track.drum.vol*2;
+      const swOf=i=>groove==='country'&&i%2===1?0.08:0; // swing 以拍計
+      const add=(i,type,vel)=>events.push({track:'drum',beat:B+i*0.5+swOf(i),durBeats:0.2,drum:type,vel});
+      if(groove==='driving'){
+        for(let i=0;i<8;i++){add(i,'kick',0.4*dv);if(i%4===2)add(i,'snare',0.4*dv);add(i,'hihat',0.14*dv);}
+      }else{ // straight 與 country 的鼓型相同，只差 swing
+        for(let i=0;i<8;i++){
+          if(i%4===0)add(i,'kick',(groove==='country'?0.45:0.5)*dv);
+          if(i%4===2)add(i,'snare',(groove==='country'?0.3:0.35)*dv);
+          if(i%2===1)add(i,'hihat',(groove==='country'?0.12:0.15)*dv);
+        }
+      }
+    }
+  }
+  return {events,bars,beatsPerBar};
+}
+
+function loop(){
+  if(!playing)return;
+  const bpm=+$('bpm').value,beat=60/bpm,bar=beat*4;
+  const {events,bars}=composeScore();
+  const t0=ctx.currentTime+0.15;
+  events.forEach(e=>{
+    if(!track[e.track].on)return;
+    const t=t0+e.beat*beat, dur=e.durBeats*beat;
+    if(e.track==='drum'){
+      if(e.drum==='kick') timers.push(schedule(()=>kick(ctx.currentTime,e.vel),t));
+      else timers.push(schedule(()=>noiseBurst(ctx.currentTime,e.drum==='snare'?0.2:0.05,e.drum,e.vel),t));
+    }else{
+      timers.push(schedule(()=>playNote(track[e.track].inst,midiToFreq(e.midi),ctx.currentTime,dur,e.vel),t));
+    }
+  });
+  loopTimer=setTimeout(loop,bars*bar*1000);
+}
+
+// ================= MIDI 匯出 =================
+// 分軌 → GM program。GM 樂器直接用其 program number；合成音色對到相近 GM。
+const SYNTH_TO_GM={ // 合成 key → GM program（0-based）
+  softpad:48,warmpad:89,glasspad:88,pluck:45,guitar:24,bell:10,flute:73,
+  lead:80,organ:18,harmonica:22,sawbass:38,subbass:38,pickbass:33};
+function programFor(key){
+  const inst=track[key].inst||'';
+  if(inst.startsWith('gm:')){const p=GM_NAMES.indexOf(inst.slice(3));return p>=0?p:0;}
+  return SYNTH_TO_GM[inst]??0;
+}
+
+function exportMIDI(){
+  const {events}=composeScore();
+  const TPQ=480; // ticks per quarter note
+  const bpm=+$('bpm').value;
+  // 依軌分組（drum 走 channel 9）
+  const chans=[
+    {key:'pad', ch:0, prog:programFor('pad')},
+    {key:'lead',ch:1, prog:programFor('lead')},
+    {key:'bass',ch:2, prog:programFor('bass')},
+    {key:'drum',ch:9, prog:0},
+  ];
+  const tracksBytes=[];
+
+  // Track 0：tempo
+  {
+    const ev=[];
+    const mpqn=Math.round(60000000/bpm);
+    ev.push(...vlq(0), 0xFF,0x51,0x03, (mpqn>>16)&255,(mpqn>>8)&255,mpqn&255);
+    ev.push(...vlq(0), 0xFF,0x2F,0x00);
+    tracksBytes.push(chunk('MTrk',ev));
+  }
+
+  chans.forEach(c=>{
+    if(!track[c.key].on)return;
+    const list=events.filter(e=>e.track===c.key);
+    if(!list.length)return;
+    // 造 note on/off 事件（含絕對 tick），排序後轉 delta
+    const raw=[];
+    list.forEach(e=>{
+      const note = c.key==='drum' ? ({kick:36,snare:38,hihat:42})[e.drum] : e.midi;
+      const on=Math.round(e.beat*TPQ);
+      const off=Math.round((e.beat+e.durBeats)*TPQ);
+      const vel=Math.max(1,Math.min(127,Math.round(e.vel*127)));
+      raw.push({t:on, d:[0x90|c.ch, note, vel]});
+      raw.push({t:off,d:[0x80|c.ch, note, 0]});
+    });
+    raw.sort((a,b)=>a.t-b.t || (a.d[0]&0xF0)-(b.d[0]&0xF0));
+    const ev=[];
+    ev.push(...vlq(0),0xC0|c.ch,c.prog); // program change
+    let last=0;
+    raw.forEach(r=>{ev.push(...vlq(r.t-last),...r.d);last=r.t;});
+    ev.push(...vlq(0),0xFF,0x2F,0x00);
+    tracksBytes.push(chunk('MTrk',ev));
+  });
+
+  const header=chunk('MThd',[0,1, (tracksBytes.length>>8)&255,tracksBytes.length&255, (TPQ>>8)&255,TPQ&255]);
+  const bytes=[].concat(header,...tracksBytes);
+  const blob=new Blob([new Uint8Array(bytes)],{type:'audio/midi'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);a.download=($('preset').value||'bgm')+'.mid';a.click();
+  URL.revokeObjectURL(a.href);
+  $('load_status').textContent='已匯出 MIDI（'+events.length+' 個音符）。拖進 DAW 或 Godot 匯入工具即可。';
+}
+function vlq(n){ // MIDI 可變長度數值
+  const b=[n&0x7F];n>>=7;while(n>0){b.unshift((n&0x7F)|0x80);n>>=7;}return b;
+}
+function chunk(id,data){
+  const len=data.length;
+  return [...id].map(c=>c.charCodeAt(0)).concat([(len>>24)&255,(len>>16)&255,(len>>8)&255,len&255],data);
+}
+
+initStyles();
+syncSeedUI();
+</script>

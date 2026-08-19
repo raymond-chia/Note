@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Snapshot",
+  "version": "1.0.0",
+  "description": "每天固定時間快照所有分頁 URL,保留最近 30 天,可挑日期一鍵還原。資料只存本機。",
+  "permissions": ["tabs", "storage", "alarms"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Tab Snapshot"
+  }
+}
