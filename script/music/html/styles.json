@@ -1,0 +1,36 @@
+{
+  "_readme": "自訂風格檔。用 http 伺服器（如 VS Code Live Server）開頁面會自動載入。由頁面「儲存」按鈕寫入。",
+  "溫馨村莊": {
+    "desc": "(自訂) 2026/8/7 下午12:24:25",
+    "bpm": 96,
+    "density": 0.6,
+    "length": 0.8,
+    "reverb": 0.3,
+    "scale": "major",
+    "color": "triad",
+    "vol": 0.5,
+    "melodyMode": "motif",
+    "groove": "country",
+    "tracks": {
+      "pad": {
+        "on": true,
+        "vol": 1,
+        "inst": "gm:acoustic_grand_piano"
+      },
+      "lead": {
+        "on": true,
+        "vol": 1,
+        "inst": "gm:acoustic_grand_piano"
+      },
+      "bass": {
+        "on": false,
+        "vol": 0.5,
+        "inst": "pickbass"
+      },
+      "drum": {
+        "on": false,
+        "vol": 0.3
+      }
+    }
+  }
+}

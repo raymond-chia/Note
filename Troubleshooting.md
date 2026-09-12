@@ -246,8 +246,15 @@
 - 要`避開`的項目: https://philbooth.me/blog/nine-ways-to-shoot-yourself-in-the-foot-with-postgresql
 - 查詢誰有指定資料庫權限 `SELECT datacl FROM pg_database WHERE datname = '資料庫名稱';`
 - 查詢權限繼承 `\du`
-- 切換 `\c 資料庫名稱 使用者名稱`
 - `\x` toggle `Expanded display`
+
+| 指令 | 意義             | 備注                                |
+| ---- | ---------------- | ----------------------------------- |
+| \l   | 列出 db          |                                     |
+| \c   | 切換 db          | `\c 資料庫名稱 使用者名稱`          |
+| \dt  | 列出 table       | 可以補上 regex 標明要查詢哪些 table |
+| \di  | 列出 table index | 可以補上 regex 標明要查詢哪些 table |
+| \d   | 列出 table 內容  | `\d table名稱`                      |
 
 ##### 效能
 
@@ -271,24 +278,124 @@
   - 減少 interface ... 偏向 functional ??
 - https://www.youtube.com/watch?v=yy8jQgmhbAU&t=1440s
 
+## Data 資料分析
+
+### 遊戲數據分析的事件遲到 (late-arriving events)
+
+- 事件實際發生時間，與最終回報 / 入庫時間可能相差數個月、甚至數年
+  - 原因：玩家長期離線、裝置沒網路、舊事件被快取在裝置端，等下次連線才補送
+  - 「最久可以多久」沒有絕對上限，實務上限由保留策略決定，例如：
+    - 客戶端：事件快取保留策略、app 重裝會清掉
+    - 傳輸層：SDK / pipeline 是否設有丟棄過舊事件的門檻
+- 有上限的例子：GA4 事件 timestamp 早於「送達 Google 伺服器」72 小時就無法正常處理
+  - 預設 (RELAXED) 會把 timestamp 強制改成 72 小時前；ENFORCE_RECOMMENDATIONS 則直接 reject
+  - https://developers.google.com/analytics/devguides/collection/protocol/ga4/reference
+- 沒有公布上限的例子：GameAnalytics (gameanalytics.com) 沒有公布延遲上限
+- 注意：這跟 BigQuery streaming ingestion 延遲 (~90 分鐘) 是完全不同層級的延遲
+
+### Medallion Architecture
+
+[用「金屬等級」表達資料成熟度](https://learn.microsoft.com/zh-tw/azure/databricks/lakehouse/medallion)
+
+- Bronze（原始層）
+  - 以原始格式包含並維護數據源的原始狀態。
+  - 做為單一事實來源，保留數據的精確度。
+  - 在銅層中執行最少量的資料驗證。
+- Silver（清洗層）
+  - 執行資料清理、重複資料刪除和正規化的位置
+- Gold（商業層）
+  - 由針對分析和報告量身打造的匯總數據所組成
+  - 符合商業規則和需求
+  - 已優化效能，以便在查詢及儀錶板中使用
+
+| bronze | silver | gold |
+| ------ | ------ | ---- |
+| 承接   | 加工   | 消費 |
+
+- silver 的重點是，統一處理每個 gold 都要做的邏輯
+  - 比如去重
+
+### ELT
+
+- Extract, load, transform
+
+#### Google
+
+| 服務                  | E   | L   | T   | 備註          |
+| --------------------- | --- | --- | --- | ------------- |
+| Dataflow              | v   | v   | v   |               |
+| Data Transfer Service | v   | v   |     | 需要 BigQuery |
+| Dataform              |     |     | v   | 需要 BigQuery |
+
+### 用 jq 處理大型 JSON（NDJSON streaming）
+
+問題：jq 預設會把**整個 JSON 讀進記憶體建成樹**。對數 GB 的單一 JSON，會吃光 RAM、卡死或被 OOM 殺掉。
+
+關鍵：把資料存成 **NDJSON**（一行一筆獨立 JSON，**不是**一個大 array），讓 jq 一行一行串流處理，記憶體恆定。
+
+|           | 單一大 JSON array          | NDJSON             |
+| --------- | -------------------------- | ------------------ |
+| jq 怎麼讀 | 讀完整檔、建完整棵樹才能動 | 一行讀、處理完就丟 |
+| 記憶體    | 與檔案同級（GB → 爆）      | 只佔一行（幾 KB）  |
+
+做法：
+
+- **`jq -c` 逐行處理**（檔案是 NDJSON 時 jq 自動 streaming，`-c` 讓輸出也維持一行一筆）
+  ```bash
+  jq -c 'select(.data.category=="design") | {ev:.data.event_id}' big.ndjson
+  ```
+- **聚合外包給 `sort`/`uniq`/`awk`**，不要用 jq 的 `group_by`/`sort_by`（那要把全資料收進 array）
+  ```bash
+  jq -r '.data.event_id' big.ndjson | sort | uniq -c   # 每個 event 幾筆
+  ```
+  `sort`/`uniq` 是外部排序工具，必要時用磁碟暫存，不會塞滿 RAM。
+- ❌ `jq -s '...'`（slurp = 故意把全檔讀成一個 array，等於自爆）
+
+一句話：把「一個無法分割的大樹」變成「一串可逐行丟棄的小樹」，jq 維持 streaming、記憶體恆定，全局聚合交給 `sort`/`uniq`/`awk`。
+
+- `jq -S . file.ndjson > file.formatted.ndjson` 可以把檔案 fmt 成人類容易讀的換行版本
+
 ## Docker
 
 ### Install docker on mac
+
+#### Install Docker CLI
+
+- 不論採用哪個方案，都需要安裝以下
+- `brew install docker`
+- `brew install docker-compose`
+- `brew install docker-buildx`
 
 #### Colima
 
 - 開源
 - 自動掛 $HOME
-- To start colima now and restart at login:  
-  brew services start colima  
-  Or, if you don't want/need a background service you can just run:  
-  /usr/local/opt/colima/bin/colima start -f
-- brew install docker-buildx
+- To start colima now and restart at login: `brew services start colima`
+  - 調整設定檔做法
+    - 改 `$(brew --prefix)/opt/colima/homebrew.mxcl.colima.plist`: 加上 `--save-config=false`
+      ```xml
+      <key>ProgramArguments</key>
+      <array>
+              <string>/opt/homebrew/opt/colima/bin/colima</string>
+              <string>start</string>
+              <string>-f</string>
+              <string>--save-config=false</string>
+      </array>
+      ```
+    - `colima start --edit` 調整設定，然後關掉 colima，重新用 `brew services start colima`
+      - 或許有簡化方式 ?? `colima template` ??
+- 檢查是否在運作: `brew services list`
+- volume 遇到 `Too many open files`
+  - Colima 預設使用 `virtiofs`
+    但 `virtiofs` 在處理 macOS 的 extended attributes（xattr，就是你 ls -la 看到的 @ 符號）時有 bug
+    會錯誤回傳 EMFILE（Too many open files）
+    改用 `sshfs` 或 `9p` 可以繞過這個問題
 
 #### Podman
 
 - red hat
 - 自動掛 $HOME
+- TODO (沒嘗試過)
 
 #### Minikube
 
@@ -299,10 +406,6 @@
 # Install hyperkit and minikube
 brew install hyperkit
 brew install minikube
-
-# Install Docker CLI
-brew install docker
-brew install docker-compose
 
 # Start minikube
 minikube start
@@ -359,6 +462,10 @@ minikube mount {source directory}:{target directory}
   - `RUN --mount=type=cache,target=/app` 臨時掛載 cache
   - `RUN --mount=type=secret,id=DOTENV_LOCAL,dst=.env` 臨時掛載 secret, DOTENV_LOCAL 是標示符
 - https://github.com/raymond-chia/Note/blob/main/script/python/docker-compose.yaml 搭配 `docker network create {network name}`
+
+### Compose
+
+- `dns` 可以指定使用的 dns
 
 ### Docker in Docker
 
@@ -472,6 +579,16 @@ b: *a
 
 - autocomplete
   - mac: https://gist.github.com/romansavrulin/41e55fba693b4025ed693559083bc3a0
+  - 如果使用 zsh
+    - `brew install git zsh-completion`
+    - 添加
+      ```
+      if type brew &>/dev/null; then
+        FPATH="$(brew --prefix)/share/zsh/site-functions:${FPATH}"
+        autoload -Uz compinit
+        compinit
+      fi
+      ```
 - https://www.youtube.com/watch?v=aolI_Rz0ZqY&t=385s
   - 某個資料夾下都用某種 git config (user + email 之類的)
   - `git diff --word-diff`
@@ -517,7 +634,7 @@ b: *a
 - Add ssh key to github
   - github: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
   - gitlab: https://docs.gitlab.com/ee/user/ssh.html
-  - 不要設定 passphrase
+  - 把 private SSH key 添加入 ssh-agent
 - [設定 ssh key 之後要推 code 到 github](https://stackoverflow.com/questions/29297154/github-invalid-username-or-password)
   - git remote set-url origin git@github.com:raymond-chia/Note.git
 
@@ -532,10 +649,21 @@ b: *a
   - 後續步驟用 `needs` 指定是處理哪個 matrix 項目: https://docs.gitlab.com/ee/ci/yaml/#needsparallelmatrix
 - Job token permissions 設定跨專案權限
 
+#### glab
+
+- 改掉預設的 host `glab config set host {{網址}} -g`
+- 登入
+
+```
+glab config set client_id {{client id}} -g --host {{網址}}
+glab auth login --hostname {{網址}} --web
+```
+
 #### Pipeline
 
 - 在 gitlab pipeline ui 加上參數註解與預設值: https://docs.gitlab.com/ci/pipelines/#prefill-variables-in-manual-pipelines
 - rules:variables 不會傳到 downstream pipeline ??
+- resource_group 可以限制 concurrency
 
 #### Workload Identity Federation
 
@@ -551,6 +679,10 @@ b: *a
   $`\textcolor{red}{\text{your text}}`$
   ```
 
+#### 複製 markdown
+
+- 貼到 rich text editing, 轉換回 plain text editing, 再次複製
+
 ## Google
 
 - 服務狀態: https://status.cloud.google.com
@@ -563,6 +695,73 @@ b: *a
 
 - [data streamed to an ingestion time partitioned table might be delayed](https://cloud.google.com/bigquery/docs/streaming-data-into-bigquery#dataavailability)
   - up to 90 mins
+- 只能 export 到 cloud storage
+- Dataset 盡量不要高達 50,000 tables, 會有效能問題
+- Quota (除了 query 之外都是免費)
+  - Load data into tables
+  - Export data from tables
+  - Query table data
+  - Copy tables
+- 查詢費用, 儲存費用
+  - 查詢費用有 on demand / capacity 兩種
+    - on demand 按照掃描多少資料來計費
+      - 每個月前 1 TB 免費
+      - 選越多 colume 花費越高
+      - cached 回傳的資料不收費
+      - cancel 如果沒有真正中斷搜尋, 還是會收全額費用
+      - partition 跟 cluster 可以降低查詢量 -> 降低查詢花費
+    - capacity 就是包 cpu, 但是可以有 commitment 優惠
+  - 儲存費用有 active, long-term
+    - long-term 是 90 天沒動
+    - 每個月前 10 GB 免費
+- Query
+  - 三種: interactive, batch, continuous
+  - 可以設定
+    - 輸出到暫存還是永久 table, 優先度, 是否使用 cached query result, timeout, session mode, 加密機制, query 上限, dialect of SQL, location, rservation (應該是 capacity query)
+    - Optional job creation 可以節省小工作的時間 (因為可能省掉建立 job 的工)
+    - Jobs explorer 來檢查 query job 的現況
+    - Dry run 可以預估查詢費用
+      - 不適用於 External tables
+- Query SQL
+  - 可以把多個 SQL 塞在一個 request
+  - [可以改資料以外的部分, 比如 access policies](https://docs.cloud.google.com/bigquery/docs/introduction-sql)
+
+#### 三種: Standard BigQuery tables, External tables, Views
+
+##### Standard BigQuery tables
+
+- contain structured data and are stored in BigQuery storage in a columnar format
+- or store references to unstructured data in standard tables by using struct columns that adhere to the ObjectRef format
+- 3 types
+  - table
+  - table clone (只保存與 table 的差異)
+  - table snapshot (只用來還原) [(只保存跟現在的 diff)](https://docs.cloud.google.com/bigquery/docs/table-snapshots-intro#storage_costs)
+
+##### External tables
+
+- 只要不在 big query 就算
+
+##### Views
+
+- Views: query 時產生的 logical tables
+- Materialized views: precomputed views
+
+#### Debug
+
+- 印出工作錯誤 log `bq --project_id=${專案} --format=json show -j ${工作 ID}`
+
+#### bq
+
+- 預設 max_rows 100
+
+##### 塞資料
+
+- result of a BigQuery load job is atomic; either all records get inserted or none do
+- 沒有查詢到 bq load 本機檔案 & gcs 檔案有不同的大小限制
+- bq load --replace 可以只覆蓋指定 partition table
+- merge 才會檢查是否有重複的主 key。平常 bigquery 不管是否有重複的主 key
+  - merge 不會清理 bq 既有的重複 key
+  - `WHEN MATCHED THEN UPDATE` 可以後面覆蓋前面
 
 ### Cloud Platform
 
@@ -653,7 +852,9 @@ b: *a
   - 優化測試的錯誤訊息
   - txtar ??
 
-### Bash
+### Shell
+
+#### Bash
 
 - 驗證: https://www.shellcheck.net/
 - 寫法: https://google.github.io/styleguide/shellguide.html
@@ -673,7 +874,7 @@ b: *a
   - -D: dump header
   - -: alias to /dev/stdout
 
-#### 問題
+##### 問題
 
 - 錯誤訊息: `")syntax error: invalid arithmetic operator (error token is "`
   - https://unix.stackexchange.com/questions/297330/syntax-error-invalid-arithmetic-operator-error-token-is
@@ -682,6 +883,12 @@ b: *a
   - 使用 process substitution `< <(command)` 取代管道 `|`
 - 強制從終端機讀取輸入，不會被 pipe 或子 shell 影響  
   `read -r < /dev/tty`
+
+#### Zsh
+
+- oh my zsh
+  - theme 希望兩行 & 有秒數 & 有完整路徑 & git branch
+    - `amuse` `crcandy` `fino-time` `ys`
 
 ### C#
 
@@ -802,6 +1009,7 @@ func F[T any, TPointer interface{
   - 1. pip3 show --files {app 名稱}
     1. 組合 Location & Files  
        https://stackoverflow.com/questions/74597855/where-does-pip3-install-package-binaries
+  - uv 可以安裝 / 管理 python
 - pip list
 - requests 不能 async 發送請求
   - httpx 可以 async 發送請求
@@ -848,7 +1056,8 @@ import app1.package.tool
 
 - 避免建立 venv: `export UV_PROJECT_ENVIRONMENT=/usr/local`
 - 修改 toml: `uv add ${想要安裝的套件名稱}`
-- 實際安裝: `uv sync --no-install-project`
+- 實際安裝: `uv sync --frozen`
+- uv 可以安裝 / 管理 python
 
 #### Gunicorn
 
@@ -895,6 +1104,381 @@ import app1.package.tool
     1. 產生 app access token: https://developers.facebook.com/docs/facebook-login/guides/access-tokens/#apptokens
     2. 拿玩家的 unique id across apps: https://developers.facebook.com/docs/facebook-login/limited-login/faq/#faq_2886507154928804
 
+## Music
+
+https://www.youtube.com/watch?v=lFa-96nUuSE&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=1&pp=iAQB
+
+### 調式
+
+https://www.youtube.com/watch?v=Ai13QxUiT5o&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=47
+
+- 只在意主音之外要挑哪些音
+- 自然大調: 明朗、歡快、活潑
+- 自然小調: 沉鬱、憂傷
+- 旋律小調、和聲小調
+
+### 轉調
+
+#### 共同和弦轉調
+
+https://www.youtube.com/watch?v=U6taiamDcxA&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=49
+
+- 常用、自然
+- 利用共通的音
+- 還是要注意和弦的主功能、屬功能、下屬功能
+- `五度圈` 可以協助找能夠用 `共同和弦轉調` 的調式
+  - 找周圍四格
+
+### 主旋律
+
+- 音域最好在十二度以內
+- 相鄰兩個音符差
+  - 一度（同音）、兩度、三度：通常是這種差異
+  - 四度：要慎重
+  - 六度：要更換行進方向（比如上升換成下降）
+- 二度、三度應該交錯
+  - 一直二度：沒活力
+  - 一直三度：不穩定
+- 張力
+  - 上升：累積張力
+  - 下降：釋放張力
+  - 短促：累積張力
+  - 悠長：釋放張力
+- 節拍
+  - 4/4 拍
+    - 強、弱、次強、弱
+    - 常規在 `強拍` 用 `長音`
+  - 2/4
+    - 強、弱
+  - 3/4
+    - 強、弱、弱
+  - 6/8
+    - 強、弱、弱、次強、弱、弱
+
+https://www.youtube.com/watch?v=8fmfuqP4Dw8&list=PLV76GuBfSOYGOzwjKj5-cOHfJ_7dwJEIl&index=5
+
+- 找特徵清單
+
+#### Melody Embellishment / Ornamentation
+
+- 避免和弦內音太單調
+- 通常在弱拍、短
+- 總是出現在和弦內音 `周圍兩度`
+
+| 和弦外音                 | 前後和弦音高 | 連接方式           |
+| ------------------------ | ------------ | ------------------ |
+| Neighbor Tone            | 相同         | step & 反向 leap   |
+| Double Neighbor Tone     | 相同         | 不只三個音，見下   |
+| Passing Tone             | 不同         | 連續 Step          |
+| Appoggiatura             | 不同         | leap & 反向 step   |
+| Escape Tone              | 不同         | step & 反向 leap   |
+| Suspension / Retardation | 不同         | 演奏上一個和弦內音 |
+| Anticipation             | 不同         | 演奏下一個和弦內音 |
+
+Double Neighbor Tone
+
+- 和弦內音 -> step 和弦外音 -> 反向 leap 和弦外音 -> 反向 step 相同和弦內音
+
+#### 動機
+
+https://www.youtube.com/watch?v=n1rKyooozDA&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=43
+
+- 可以改變順序
+- 改變方向
+- 改變音程
+- 拆分
+- 延長
+- 組合
+- 刪除
+- 切分
+- 重寫頭、中、尾
+- 碎片化
+- 發展
+- 時間翻轉
+- 音高翻轉
+
+### 和弦
+
+- 主功能和弦 e.g. do mi so
+  - 穩定、沒活力
+  - I, III, VI
+- 屬功能和弦
+  - 不穩定
+  - V, VII
+- 下屬功能和弦
+  - 介於主功能、屬功能之間
+  - II, IV
+- 功能進行
+  - 主功能 -> 主/屬/下屬
+  - 下屬功能 -> 主/屬/下屬
+  - 屬功能 -> 主
+- V -> I 很穩定
+  - 前面可以一直接: ... 屬和弦的屬和弦 -> 屬和弦 -> 和弦
+    - 屬和弦的屬和弦 (附屬和弦) 是靠其他 `調性` 的和弦
+- 減少不同和弦之間的音程差（度），可以保持流暢
+  - 可以靠 `轉位` 達到
+- 排列
+  - 同一個和弦裡面，相鄰音符超過四度 -> 開放 -> 空曠
+    - 適合低音部
+  - 同一個和弦裡面，相鄰音符不超過四度 -> 密集 -> 渾厚
+    - 適合高音部
+- 3 和弦 (3 音) 跟 7 和弦 (4 音)
+  - 7 和弦 = 3 和弦多 1 個音，比較不穩定
+- [各種調整方式](https://www.youtube.com/watch?v=OEmjZffu4Es&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=62)
+  - 分解
+  - texture
+  - 附屬、借用
+  - 轉位、開放、密集
+  - 七和弦
+  - 鄰和弦
+
+#### 延伸進行
+
+- 音樂開頭奠定基調 or 維持和弦功能、處理張力
+- 鄰和弦: 整個和弦上 or 下調整兩度
+- pedal point: 持續維持最低音的和弦，只改變上面的和弦
+
+#### 序列進行
+
+- descending 5th
+  - I IV vii° iii vi ii V I
+- ascending 5th
+  - I V ii vi iii vii° IV I
+
+#### Broken Chord
+
+- 如果拆開和弦，要有規律。比如都是下到上
+  - 節奏型音型
+  - 華彩型音型
+  - 綜合型音型
+
+#### Texture
+
+- 八度疊加: 開闊宏大
+- 多種 broken chord
+  - 發展用一種，後續用兩種
+  - 節奏 + 華彩 or 兩種華彩
+- 用一個樂器重複根音 or 最低音
+  - 保持跟其他樂器的音程
+
+### 搭配
+
+- 主旋律最好用到和弦的音 (和弦內音)
+  - 先寫和弦，再寫主旋律
+- homophony
+  - 一個旋律 + 和聲
+- polyphony
+  - 多個旋律
+  - [四部合聲](https://www.youtube.com/watch?v=ePtjs9CXWLE&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=59)
+  - fugue 兩個旋律互相模仿
+  - canon 兩條旋律交織出現
+- heterophony
+  - 常見於東方音樂
+  - counterpoint
+
+#### 終止
+
+##### PAC 終止
+
+https://www.youtube.com/watch?v=0EoSyItDLck&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=16
+
+終止感最強
+
+- 和弦從 屬功能和弦 -> 主功能和弦、都是原位和弦
+- 旋律結束在主音
+
+##### IAC 終止
+
+- 違反一個 PAC
+
+##### HC 終止
+
+- 和弦停在 屬功能和弦
+
+#### 主題 Theme
+
+- 緊湊
+- 鬆散
+- 混合
+- 複合
+
+##### 緊湊
+
+###### Sentence
+
+- 完整的八小節 theme
+- 由 Presentation + Continuation 結合
+- 前四小節 = Presentation
+- 後四小節 = Continuation
+- 展示、再現、發展、終止
+
+---
+
+Presentation 展示特徵、基調
+
+- exact repetition
+  - 可以有些微變動
+- sequential repetition
+  - 旋律、和弦同時提高音程
+  - 每次提高、下降三度
+- statement response repetition
+  - 提問用主功能和弦
+  - 回答用屬功能和弦
+  - 回答可能會用移調 (比如從 C 調改 G 調)
+
+---
+
+Continuation 打破穩定性、最後抵達終止
+
+- surface rhythm acceleration
+  - 旋律控制張力
+- harmonic acceleration
+  - 和弦控制張力
+- sequential progression
+  - 每次提高、下降三度
+- fragmentation
+  - 找到 presentation 最有特徵的地方，拿來用
+- liquidation
+  - 用來取代終止
+  - 使用新的 or 沒有特徵的旋律
+
+###### Period
+
+- 完整的八小節 theme
+- 由 Antecedent + Consequent 結合
+- 前四小節 = Antecedent
+- 後四小節 = Consequent
+- 展示、發展 & 終止、再現、發展 & 強終止
+
+###### 小結
+
+https://www.youtube.com/watch?v=9TuDZoSQO-s&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=51
+https://www.youtube.com/watch?v=VFSEZvM3LA8&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=53
+
+- sentence 與 period 混用
+
+|      |             |      |               |
+| ---- | ----------- | ---- | ------------- |
+| 展示 | 再現        | 發展 | 終止          |
+| 展示 | 發展 & 終止 | 再現 | 發展 & 強終止 |
+
+##### 鬆散
+
+https://www.youtube.com/watch?v=_rPIy9eBhJ8&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=64
+
+- 把某一節變多小節
+- 壓縮小節
+- 重複結構（比如重複展示、發展、再現、終止）
+- 在音樂結構之間添加小節
+- 把多個結構融合在一起
+- 省略某些結構
+
+#### Form
+
+- 拼裝多個 theme
+
+##### 緊湊
+
+###### 二段體
+
+- 前面八小節、後面八小節
+- 兩個 theme、要有聯繫、對比
+- 第一個 theme 不用 PAC 終止
+  - 第二個 theme 用 PAC 終止
+
+###### 三段體
+
+https://www.youtube.com/watch?v=95k8OogqK_A&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=37
+
+- 前面八小節：展示 theme + PAC
+  - 接續四小節：對比展示 + HC
+  - 接續四小節：再現展示 + PAC
+- 對比時，和弦盡量不穩定 (盡量不用主功能和弦)
+
+##### 迴旋曲
+
+https://www.youtube.com/watch?v=G51tanj-Tf8&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=56
+
+- 一個核心主題
+- 至少兩個對比主題
+  - A B A C A ...
+  - 加上奏鳴曲特點 -> ABA C ABA
+    - 展現 對比性發展 復現
+- 對比主題喜歡轉調
+- 每段落都可以任意時長
+  - 通常第一個 A 比之後的 A 長
+
+##### 主歌副歌 verse chorus form
+
+- [推測的演化過程](https://www.youtube.com/watch?v=uFO14gmLt-U&list=PLfYsxKml7GddY4nC-KoxV3ohEdoQg_dsC&index=65) ??
+  - 二段體 主歌累積張力 副歌釋放張力
+    -> 主副主副主副 (太規律)
+    -> 主副主副副
+    -> 主副 間奏 主副 間奏 副
+    -> 開頭 `主 預副 副 後副` 間奏 `主 預副 副 後副` 間奏 `預副 副 後副` 結尾 尾聲
+  - 基本款就是 主副 主副 間奏 副
+- 副歌要最有特點
+  - 副 : primary module
+  - 主、預副、後副、間奏 : secondary module
+  - 開頭、結尾、尾聲 : auxiliary module
+- 最後一個間奏進入副歌時，力圖利用巨大對比，留下深刻印象
+
+| 功能     | 主歌                | 副歌                                        |
+| -------- | ------------------- | ------------------------------------------- |
+| 張力     | 累積                | 釋放                                        |
+| 段落功能 | 展示、發展、變化    | 展示、重複、微調、再現                      |
+| 終止     |                     | 需要 起 停 頓 挫                            |
+| 和弦功能 | `屬、下屬` 推進發展 | `主` 強調調性                               |
+| 和弦形式 | 簡單                | 複雜 比如增加 texture、華彩、附屬、替代等等 |
+
+- 書寫兩個主題
+- 調整主歌、副歌
+  - 旋律、和弦
+- 間奏
+  - 需要明確的不同
+  - 需要平靜
+  - 不要特點、結構
+  - 不需要終止
+  - 可以毫無意義，隨便亂寫
+- 開頭
+  - 不需要結構
+  - 不需要終止
+  - 可以擷取主歌 or 副歌
+  - 可以隨便寫
+- 預副歌
+  - 協助轉調 (如果主歌、副歌不同調性)
+  - 可以都用屬功能
+- 後副歌
+  - 降低張力
+  - 可以重複副歌
+- 結尾
+  - 降低張力
+  - 主功能
+  - 放慢
+  - 可以隨便寫、重現主歌、重現副歌
+- 尾聲
+  - 添加新內容、類似電影結尾彩蛋
+  - 通常只有古典音樂在用
+
+#### 對位法 counterpoint
+
+- 做法
+  - 節奏
+    - 一對一 (兩個旋律的節奏相同，音高不同)
+    - 多對一
+    - 延留音對位
+  - 音程
+    - 非常和諧 1,8,5 度
+    - 和諧 3,4,6 度
+    - 不和諧 2,7 度
+      - 特別是 小 2 度, 大 7 度
+    - 不和諧 -> 增加張力。和諧 -> 降低張力
+  - 旋律進行方向
+    - 同向 (一起往上、往下)
+      - 音程差距一樣 -> 平行
+    - 反向 (一邊往上，一邊往下)
+    - 斜向 (一邊不動，一邊往上或往下)
+
 ## Network
 
 ### 查詢自身 ip
@@ -919,6 +1503,18 @@ import app1.package.tool
 - 定期寫入 DB 比較容易應付大流量
   - 每次 request 寫入 DB, DB 不易撐住
   - 每次 request 先寫入 Redis, 再寫入 DB ??
+
+#### .net Orleans
+
+- 同一個 grain identity (比如同一個 player)，在整個 cluster 只有一個 activation，位於某個 pod 上
+- grain activation 是 single thread，不會有 race condition
+  - 除非用 Reentrant 或其他方式打破
+- directory owners 負責保管部分的 grain directory
+  - 最終收到的 pod 試圖建立 grain activation 時，也會從 directory owners 得知 grain activation 是否該在自己身上
+  - 如果 directory owner crash，在舊版的 eventually consistent directory 下，可能導致短暫出現兩個重複的 grain activation
+    - v9.0 試圖 recovery directory 時，會檢查其他 pod 身上的 grain activation
+  - v9.2 預設根據資源指定 pod 建立 grain activation
+- 可以自訂寫回 db 的時間，比如每次、週期、程式觸發
 
 ### Server 處理更新
 
@@ -999,19 +1595,8 @@ import app1.package.tool
 
 #### Mac
 
-- brew
-  - switch version
-    - for example
-      - brew unlink node
-      - brew link node@14
 - [切換語言: ctrl + space](https://support.apple.com/en-sg/guide/mac-help/mchlp1406/mac)
-- 開機的時候做事
-  1. 打開 Automator
-  2. 選擇應用程式 ??
-  3. 執行 shell 工序指令
-  4. 寫 bash
-  5. 儲存
-  - https://support.apple.com/zh-tw/guide/automator/autbbd4cc11c/mac
+- 熱點: 角落綁其他功能，可以在設定修改
 
 ##### 如果密碼打錯被鎖
 
@@ -1030,6 +1615,33 @@ import app1.package.tool
 - spam cursor over lines: command + alt + arrow
 - back: ctrl + -
 - 還原意外關閉的頁面: cmd + shift + t
+
+##### brew
+
+- switch version
+  - for example
+    - brew unlink node
+    - brew link node@14
+- ```sh
+    brew tap 使用者/repo gitURL
+    cd $(brew --repository 使用者/repo)
+    # 可以在 git repo 進行 git 操作
+  ```
+
+##### 開機的時候做事
+
+1. 打開 Automator
+2. 選擇應用程式 ??
+3. 執行 shell 工序指令
+4. 寫 bash
+5. 儲存
+
+- https://support.apple.com/zh-tw/guide/automator/autbbd4cc11c/mac
+
+##### 檢查是否複製到密碼
+
+- 複製 [script](script/lua/hammerspoon.lua) 到 `~/.hammerspoon/init.lua`
+- reload config
 
 #### Debian
 
@@ -1264,6 +1876,36 @@ import app1.package.tool
   - n 下一個
   - shift + n 上一個
 - u 代表 undo
+- 貼上之前使用 `:set paste`
+
+## UI/UX
+
+### UI
+
+1. 對比（Contrast）：每行都在搶注意力，結果什麼都不突出，沒有視覺層級
+2. 重複（Repetition）：沒有任何一致性——字體、顏色、風格每行都換，讀者無法建立視覺規律
+3. 對齊（Alignment）：文字東一塊西一塊，沒有統一的對齊基準線
+4. 親密性（Proximity）：文字之間的間距隨意，看不出哪些內容是一組的
+
+- 重點
+  - 一套不衝突的配色方案
+  - 統一的字體和元素風格
+  - 基本的留白和佈局意識
+
+### UX
+
+- 《Don't Make Me Think》
+- 一致性（Consistency）：相同功能的外觀和行為要一致，降低學習成本
+- 可見性（Visibility）：系統狀態要讓使用者隨時知道發生了什麼事
+- 回饋（Feedback）：每個操作都應有即時、明確的回應
+- 容錯性（Error Tolerance）：預防錯誤發生，發生時也要容易復原（例如 undo）
+- Hick's Law：選項越多，決策時間越長 → 減少不必要的選擇
+- Fitts's Law：目標越大、越近，越容易點擊 → 重要按鈕要夠大、放在容易觸及的位置
+- Jakob's Law：使用者大部分時間花在別的產品上 → 遵循常見慣例，不要為了創新而反直覺
+- Miller's Law：短期記憶約能處理 7±2 個資訊單元 → 資訊要分群組呈現
+- 流暢就是要符合大腦的預測
+  - 大腦不會等感官回報，而是會先預測
+  - 如果預測跟回報不同，就會感覺不流暢
 
 ## Xcode
 
@@ -1275,3 +1917,8 @@ import app1.package.tool
   - xcode-select -p
 - if missing files
   - https://stackoverflow.com/questions/53135863/macos-mojave-ruby-config-h-file-not-found#answer-65481787
+
+## 銀行
+
+- 中國信託繳費方式
+  - 全國繳費網 -> 信用卡繳費 -> 要使用同一個人的其他銀行帳號繳費
