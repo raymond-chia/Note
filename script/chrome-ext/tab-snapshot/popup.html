@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      body {
+        font-family: -apple-system, sans-serif;
+        width: 320px;
+        margin: 0;
+        padding: 12px;
+        font-size: 13px;
+      }
+      h1 {
+        font-size: 14px;
+        margin: 0 0 10px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 10px;
+      }
+      select,
+      button {
+        font-size: 13px;
+        padding: 5px 8px;
+      }
+      select {
+        flex: 1;
+      }
+      button {
+        cursor: pointer;
+      }
+      #info {
+        color: #666;
+        margin-bottom: 8px;
+        min-height: 16px;
+      }
+      #restore {
+        width: 100%;
+        padding: 8px;
+        font-weight: 600;
+      }
+      #snap {
+        white-space: nowrap;
+      }
+      .empty {
+        color: #999;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Tab Snapshot</h1>
+    <div class="row">
+      <select id="dates"></select>
+      <button id="snap">立即快照</button>
+    </div>
+    <div id="info"></div>
+    <button id="restore">在新視窗開啟這天的分頁</button>
+    <script src="popup.js"></script>
+  </body>
+</html>
