@@ -13,6 +13,7 @@ services:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
       - UV_PROJECT_ENVIRONMENT=/usr/local
+      - GOOGLE_APPLICATION_CREDENTIALS=gcloud-credential.json # Google credential
     command: >
       bash -c "pip install uv &&
         uv sync &&

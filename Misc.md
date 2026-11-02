@@ -1,3 +1,7 @@
+## 行銷 indie 遊戲
+
+- https://www.facebook.com/groups/226369804087843/
+
 ## 管理遊戲資料
 
 - https://www.gamedevware.com
